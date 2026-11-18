@@ -1,0 +1,90 @@
+/* The Workspace page (pages/Workspace.tsx): a bar, a rail of artifacts and files, and a stage. */
+
+.ws { height: 100%; display: flex; flex-direction: column; min-height: 0; background: var(--marble); }
+.ws-closed { padding: 2rem; }
+
+/* The one bar: where you are on the left, the sandbox's state and controls on the right. */
+.ws-bar { position: relative; z-index: 7; display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.9rem; flex: none; min-height: 2.6rem; padding: 0.3rem 0.6rem 0.3rem 0.9rem; background: var(--marble-2); border-bottom: 1px solid var(--stone); }
+.ws-where { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 1rem; }
+.ws-title { font-family: var(--display); font-variant: small-caps; letter-spacing: 0.08em; font-weight: 700; font-size: 1rem; }
+.ws-state { display: inline-flex; align-items: center; color: var(--muted); white-space: nowrap; }
+.ws-state.running { color: var(--verdigris); }
+.ws-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; margin-left: auto; }
+.ws-tools svg { width: 14px; height: 14px; }
+.ws-usage { margin-right: 0.4rem; font-variant-numeric: tabular-nums; }
+.service-access-popover { width: 27rem; max-width: calc(100vw - 1rem); max-height: min(75vh, 42rem); overflow-y: auto; }
+.service-access-trigger { display: inline-flex; align-items: center; gap: 0.28rem; }
+.service-access-bolt { width: 1.18rem; height: 1.18rem; display: inline-grid; place-items: center; color: var(--muted); border-radius: var(--round); }
+.service-access-trigger.active { color: var(--ink); border-color: var(--gold); background: var(--ochre-soft); box-shadow: 0 0 0 1px rgba(176, 138, 62, 0.18); }
+.service-access-trigger.active:hover { border-color: var(--gold); background: #f4dfaa; }
+.service-access-trigger.active .service-access-bolt { color: #fffaf0; background: var(--gold); box-shadow: 0 0 0 0 rgba(176, 138, 62, 0.45); animation: service-access-pulse 2.2s ease-out infinite; }
+.service-access-trigger.active .service-access-bolt svg { width: 12px; height: 12px; fill: currentColor; stroke: currentColor; }
+@keyframes service-access-pulse { 55%, 100% { box-shadow: 0 0 0 5px rgba(176, 138, 62, 0); } }
+.service-access-countdown { padding: 0.05rem 0.3rem; border-radius: var(--radius); background: rgba(176, 138, 62, 0.14); color: var(--pompeii-dark); font-family: var(--mono); font-size: 0.68rem; font-variant-numeric: tabular-nums; }
+.service-access-spinner { display: inline-block; width: 0.72rem; height: 0.72rem; flex: none; border: 1.5px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: service-access-spin 0.7s linear infinite; }
+@keyframes service-access-spin { to { transform: rotate(360deg); } }
+.service-access-title { justify-content: space-between; }
+.service-access-title strong { font-family: var(--display); font-variant: small-caps; letter-spacing: 0.06em; }
+.service-access-intro { margin: 0.35rem 0 0.55rem; }
+.service-access-group { margin: 0.55rem 0; }
+.service-access-group > h4, .service-access-subhead { margin: 0 0 0.25rem; font-size: 0.78rem; }
+.service-access-subhead { margin-top: 0.6rem; }
+.service-access-services { display: grid; gap: 0.3rem; }
+.service-access-service { padding: 0.42rem 0.55rem; border: 1px solid var(--stone); border-radius: var(--radius); background: #fffaf0; }
+.service-access-service > header { display: flex; align-items: center; justify-content: space-between; gap: 0.8rem; }
+.service-access-service > header > span:first-child { min-width: 0; display: flex; flex-direction: column; }
+.service-access-service > header small { overflow: hidden; color: var(--muted); font-size: 0.64rem; font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
+.service-access-switch-line { display: flex; align-items: center; gap: 0.35rem; flex: none; }
+.service-access-state { min-width: 2.9rem; color: var(--muted); font-family: var(--mono); font-size: 0.68rem; font-variant-numeric: tabular-nums; text-align: right; }
+.service-access-state.working { min-width: 5.8rem; display: inline-flex; align-items: center; justify-content: flex-end; gap: 0.28rem; color: var(--pompeii-dark); }
+.service-access-meta { min-width: 0; overflow: hidden; color: var(--muted); font-size: 0.62rem; text-overflow: ellipsis; white-space: nowrap; }
+.service-access-service > .service-access-meta { display: block; margin-top: 0.1rem; }
+.service-access-service-footer { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; margin-top: 0.1rem; }
+.service-access-config { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin: 0.7rem 0; padding: 0.7rem; border: 1px solid var(--stone); border-radius: var(--radius); background: var(--marble-2); }
+.service-access-config label { display: grid; gap: 0.2rem; color: var(--muted); font-size: 0.72rem; }
+.service-access-config input { min-width: 0; color: var(--ink); }
+.service-access-config .wide { grid-column: 1 / -1; }
+.service-access-form-actions { justify-content: flex-end; }
+.service-access-actions { display: flex; flex: none; gap: 0.65rem; }
+
+.ws-body { flex: 1; min-height: 0; display: flex; }
+.ws-rail { width: 15.5rem; flex: none; overflow: auto; padding: 0 0 2rem; border-right: 1px solid var(--stone); background: var(--marble-2); font-size: 0.84rem; }
+.rail-head { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; justify-content: space-between; padding: 0.55rem 0.5rem 0.25rem 0.8rem; background: var(--marble-2); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.14em; color: var(--muted); font-weight: 600; }
+.rail-empty { margin: 0; padding: 0.2rem 0.8rem 0.4rem; }
+.tree-row { display: flex; align-items: center; gap: 0.15rem; width: 100%; padding: 0.12rem 0.5rem; border: 0; border-radius: 0; background: none; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: inherit; color: var(--ink); }
+.tree-row:hover:not(:disabled) { background: rgba(176, 138, 62, 0.12); }
+.tree-row.active { background: rgba(176, 138, 62, 0.26); }
+.tree-row.quiet { color: var(--muted); }
+.tree-row.dir { font-weight: 600; }
+.tree-row.artifact { padding-left: 0.6rem; }
+.tree-row.application { gap: 0.35rem; }
+.tree-row.application .application-icon { display: inline-flex; color: var(--verdigris); }
+.tree-row.application .application-icon svg { width: 13px; height: 13px; }
+.tree-row.application .nav-dot { margin-left: auto; }
+.tree-row.fresh { animation: tree-fresh 3.2s ease-out; }
+@keyframes tree-fresh { from { background: rgba(127, 209, 139, 0.6); } }
+.tree-caret { display: inline-flex; width: 0.9rem; color: var(--muted); transition: transform 0.1s; }
+.tree-caret.open { transform: rotate(90deg); }
+.tree-caret svg { width: 12px; height: 12px; }
+
+.ws-stage { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; background: #fffdf8; }
+.gallery { flex: 1; min-height: 0; overflow: auto; padding: 1.1rem 1.2rem 3rem; }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr)); gap: 0.9rem; }
+.card-tile { display: flex; flex-direction: column; align-items: stretch; gap: 0; padding: 0; overflow: hidden; text-align: left; background: var(--marble); border: 1px solid var(--stone); border-radius: var(--radius); box-shadow: var(--shadow); transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s; }
+.card-tile:hover { border-color: var(--gold); transform: translateY(-1px); box-shadow: 0 3px 12px rgba(70, 45, 20, 0.12); background: var(--marble); }
+.tile-cover { height: 6.5rem; display: flex; align-items: center; justify-content: center; background: linear-gradient(160deg, var(--marble-2), #efe6d3); border-bottom: 1px solid var(--stone); }
+.tile-cover .tile-kind { font-size: 1.9rem; opacity: 0.45; }
+.application-tile .tile-cover { color: var(--verdigris); }
+.application-tile .tile-kind svg { width: 2rem; height: 2rem; }
+.tile-text { display: flex; flex-direction: column; gap: 0.15rem; padding: 0.5rem 0.7rem 0.6rem; min-width: 0; }
+.tile-text b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); font-size: 0.84rem; font-weight: 600; }
+.gallery-empty { max-width: 32rem; margin: auto; padding: 2rem 1.4rem; text-align: center; }
+.gallery-empty h3 { margin: 0.6rem 0 0.3rem; font-size: 0.95rem; color: var(--ink); }
+
+.reset-list { max-height: 11rem; overflow: auto; font-size: 0.76rem; }
+.reset-form { margin-top: 1rem; padding-top: 0.8rem; border-top: 1px solid var(--stone); }
+
+@media (max-width: 760px) {
+  .ws-body { flex-direction: column; }
+  .ws-rail { width: auto; max-height: 34%; border-right: 0; border-bottom: 1px solid var(--stone); }
+}

@@ -1,0 +1,16 @@
+node_modules/
+dist/
+data/
+.env
+.env.*
+!.env.example
+test-results/
+playwright-report/
+coverage/
+.spike-data/
+.autoforum/
+backups/
+docs/
+*.log
+.DS_Store
+Thumbs.db

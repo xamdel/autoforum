@@ -1,0 +1,33 @@
+/* One workspace file and the live application, wherever they show (components/FileView.tsx): the Workspace page's
+   stage, or the dock beside a thread. */
+
+.file-view, .live-view, .artifact-view { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.file-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.7rem; flex: none; min-height: 2.2rem; padding: 0.3rem 0.9rem; background: var(--marble); border-bottom: 1px solid var(--stone); }
+.file-path { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: none; padding: 0; color: var(--ink-soft); direction: rtl; text-align: left; }
+.file-actions { display: flex; align-items: center; gap: 0.9rem; margin-left: auto; white-space: nowrap; }
+.file-actions .link, .file-actions a { display: inline-flex; align-items: center; gap: 0.25rem; }
+.file-actions svg { width: 15px; height: 15px; }
+.file-content { flex: 1; min-height: 0; overflow: auto; padding: 0.9rem 1.1rem 2.5rem; }
+.file-note { margin: 0 0 0.7rem; padding: 0.35rem 0.7rem; background: var(--ochre-soft); border-left: 3px solid var(--gold); color: #6b5121; }
+.file-text { margin: 0; border: 0; padding: 0; background: none; font-size: 0.8rem; white-space: pre; overflow: visible; }
+.file-image-wrap { display: grid; place-items: center; min-height: 100%; }
+.file-image { max-width: 100%; border: 1px solid var(--stone); background: repeating-conic-gradient(#efe7d8 0 25%, #fffdf8 0 50%) 0 0 / 16px 16px; }
+/* A document reads like a page: a measure of about 70 characters, centred in whatever room it has. */
+.doc { max-width: 46rem; margin: 0 auto; font-size: 1rem; line-height: 1.65; }
+.doc .md > :first-child { margin-top: 0; }
+.doc .md h1 { font-size: 1.6rem; line-height: 1.25; }
+.doc .md h2 { font-size: 1.25rem; padding-bottom: 0.2rem; border-bottom: 1px solid var(--stone); margin-top: 1.6rem; }
+.doc .md h3 { font-size: 1.05rem; }
+
+.live-view iframe, .artifact-view iframe { flex: 1; width: 100%; min-height: 0; border: 0; background: #fff; }
+.live-on { display: inline-flex; align-items: center; font-variant: small-caps; letter-spacing: 0.06em; color: var(--verdigris); }
+.live-on .nav-dot { margin: 0 0.4rem 0 0; background: #3f9a52; animation: soft-pulse 1.6s ease-in-out infinite; }
+.live-path { flex: 0 1 15rem; min-width: 6rem; }
+.live-path input { width: 100%; padding: 0.08rem 0.45rem; font-family: var(--mono); font-size: 0.76rem; }
+.live-suggest { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); font-size: 0.76rem; }
+.live-gate { max-width: 30rem; margin: auto; padding: 2rem 1.4rem; text-align: center; }
+.live-gate h3 { margin: 0.6rem 0 0.3rem; font-size: 0.95rem; color: var(--ink); }
+.live-gate p { color: var(--ink-soft); font-size: 0.94rem; }
+.live-gate .row { margin-top: 1rem; }
+.live-gate-mark { display: inline-flex; padding: 0.75rem; border-radius: 50%; background: var(--gold-soft); color: var(--ochre); }
+.live-gate-mark svg { width: 22px; height: 22px; }
