@@ -85,6 +85,7 @@ function ThreadAgents({ detail, turns }: { detail: ThreadDetail; turns: AgentTur
   const agents = members.filter((member) => member.kind === "agent");
   const [limit, setLimit] = useState(String(detail.thread.agentTurnLimit));
   const [selected, setSelected] = useState<Set<number>>(new Set());
+  const allPendingSelected = pending.every((turn) => selected.has(turn.id));
   const parsedLimit = Number(limit);
   const validLimit = Number.isSafeInteger(parsedLimit) && parsedLimit >= detail.thread.agentTurnCount && parsedLimit <= 10_000;
   useEffect(() => setLimit(String(detail.thread.agentTurnLimit)), [detail.thread.agentTurnLimit]);
@@ -137,7 +138,12 @@ function ThreadAgents({ detail, turns }: { detail: ThreadDetail; turns: AgentTur
       ))}
       {isOwner && pending.length ? (
         <div className="turn-requests">
-          <div className="small"><b>{plural(detail.thread.pendingTurnCount, "request")} waiting</b></div>
+          <div className="turn-request-head small">
+            <b>{plural(detail.thread.pendingTurnCount, "request")} waiting</b>
+            <button type="button" className="link" onClick={() => setSelected(allPendingSelected ? new Set() : new Set(pending.map((turn) => turn.id)))}>
+              {allPendingSelected ? "Clear all" : "Select all"}
+            </button>
+          </div>
           {pending.map((turn) => (
             <div className="turn-request" key={turn.id}>
               <input type="checkbox" aria-label={`Select @${turn.agent}'s request on post:${turn.triggerLocalId}`} checked={selected.has(turn.id)} onChange={(event) => setSelected((current) => {

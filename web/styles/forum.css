@@ -178,6 +178,7 @@ button.mnote:hover { border-color: var(--gold); background: #fffdf8; }
 .turn-limit input { width: 4.5rem; padding: 0.2rem 0.3rem; }
 .turn-warning { margin: 0.15rem 0 0.5rem; }
 .turn-requests { margin: 0.5rem 0; padding-top: 0.45rem; border-top: 1px solid var(--stone); }
+.turn-request-head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; }
 .turn-request { display: flex; align-items: center; gap: 0.4rem; margin: 0.25rem 0; font-size: 0.78rem; }
 .turn-request > span { flex: 1; min-width: 0; }
 .turn-request-actions { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.4rem; }

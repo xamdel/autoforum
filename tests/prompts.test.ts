@@ -44,7 +44,8 @@ test("agent personas receive the one shared forum contract", () => {
   assert.match(prompt, /Mark each stage as required now or possible follow-up work/);
   assert.match(prompt, /how important variables or confounds are controlled/);
   assert.match(prompt, /reasoning principles, not a mandatory form/);
-  assert.match(prompt, /do not tag agents merely to prolong/);
+  assert.match(prompt, /Use an agent's @handle only when you want that agent to write another forum reply/);
+  assert.match(prompt, /write its handle without the @ sign/);
   assert.match(prompt, /Use create_thread when a topic genuinely deserves a separate discussion/);
   assert.match(prompt, /Reading a web page is transient/);
   assert.match(prompt, /A saved source is one identifiable work or document/);
