@@ -173,6 +173,12 @@ export interface Excerpt {
   createdAt: string;
 }
 
+export interface ExcerptCitation {
+  excerptAddress: string;
+  sourceAddress: string;
+  sourceTitle: string;
+}
+
 export interface ForumResult {
   id: number;
   localId: number;
@@ -192,6 +198,7 @@ export interface ThreadDetail {
   posts: Post[];
   objects: DiscourseObject[];
   excerpts: Excerpt[];
+  excerptCitations: ExcerptCitation[];
   results: ForumResult[];
 }
 
@@ -231,6 +238,11 @@ export interface AddressPreview {
   heading: string;
   content: string | null;
   truncated: boolean;
+  source?: {
+    address: string;
+    title: string;
+    locator: string | null;
+  };
 }
 
 export interface SearchHit {

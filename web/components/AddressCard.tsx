@@ -5,6 +5,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
+import { addressLink } from "../lib/router.ts";
 import { useProject } from "../state/project.tsx";
 import { usePreview } from "../state/queries.ts";
 import { KindIcon } from "./ui.tsx";
@@ -83,7 +84,11 @@ export function AddressCard() {
       <div className="address-card-kind"><KindIcon kind={kind} /> {target.address}</div>
       {preview.data ? (
         <>
-          <strong className="address-card-heading">{preview.data.heading.replace(/\[\[([^\]]+)\]\]/g, "$1")}</strong>
+          <strong className="address-card-heading">
+            {preview.data.source ? (
+              <>Excerpt from <a href={addressLink(projectId, preview.data.source.address)}>{preview.data.source.title}</a>{preview.data.source.locator ? ` (${preview.data.source.locator})` : ""}</>
+            ) : preview.data.heading.replace(/\[\[([^\]]+)\]\]/g, "$1")}
+          </strong>
           {preview.data.content ? <p className="address-card-body">{preview.data.content}</p> : null}
         </>
       ) : preview.error ? (

@@ -7,7 +7,7 @@ import { hasExactBrowserOrigin, readBrowserUser } from "../auth/browser.ts";
 import type { AppDatabase } from "../db.ts";
 import { isProjectMember } from "../projects.ts";
 import { listThreadResults } from "./results.ts";
-import { formatAddress, reserveProjectAddresses } from "./addresses.ts";
+import { formatAddress, parseAddress, reserveProjectAddresses } from "./addresses.ts";
 import { publishInputSchema, publishPost, type PublishPostResult } from "./publish.ts";
 
 export const publishThreadInputSchema = publishInputSchema.omit({ replyTo: true }).extend({
@@ -226,6 +226,18 @@ export function createThreadRoutes(database: AppDatabase, enqueueTurns: EnqueueA
       ),
       listThreadResults(database, projectId, threadId),
     ]);
+    const citedExcerptIds = [...new Set(postResult.rows
+      .flatMap((row) => row.refs as string[])
+      .map((address) => parseAddress(address))
+      .filter((address) => address?.prefix === "excerpt" && !address.fragment)
+      .map((address) => address!.localId))];
+    const citationResult = citedExcerptIds.length ? await database.pool.query(
+      `select e.local_id as "excerptLocalId", s.local_id as "sourceLocalId", s.title as "sourceTitle"
+         from excerpt e join source s on s.row_id = e.source_id
+        where e.project_id = $1 and e.local_id = any($2::bigint[])
+        order by e.local_id`,
+      [projectId, citedExcerptIds],
+    ) : { rows: [] };
     const postAddresses = new Map(postResult.rows.map((row) => [row.id, formatAddress("post", row.localId)]));
     return context.json({
       thread: { ...thread, address: formatAddress("thread", thread.localId) },
@@ -245,6 +257,11 @@ export function createThreadRoutes(database: AppDatabase, enqueueTurns: EnqueueA
         ...row,
         address: formatAddress("excerpt", row.localId),
         sourceAddress: formatAddress("source", row.sourceLocalId),
+      })),
+      excerptCitations: citationResult.rows.map((row) => ({
+        excerptAddress: formatAddress("excerpt", row.excerptLocalId),
+        sourceAddress: formatAddress("source", row.sourceLocalId),
+        sourceTitle: row.sourceTitle,
       })),
       results,
     });

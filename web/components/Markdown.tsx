@@ -90,12 +90,29 @@ function MathExpression({ source, display }: { source: string; display: boolean 
 interface Context {
   projectId: number;
   kinds: ReadonlyMap<string, "human" | "agent">;
+  excerptSources?: ReadonlyMap<string, { sourceAddress: string; sourceTitle: string }>;
+  expandedSources: Set<string>;
 }
 
 export function Reference({ address, projectId }: { address: string; projectId: number }) {
   if (address.startsWith("new:")) return <span className="ref pending" title="An attachment on this post; it gets its address when posted">{address}</span>;
   const kind = address.slice(0, address.indexOf(":"));
   return <a className={`ref ref-${kind}`} href={addressLink(projectId, address)} data-ref={address}>{address}</a>;
+}
+
+function ContextualReference({ address, context }: { address: string; context: Context }) {
+  const citation = context.excerptSources?.get(address);
+  if (!citation || context.expandedSources.has(citation.sourceAddress)) {
+    return <Reference address={address} projectId={context.projectId} />;
+  }
+  context.expandedSources.add(citation.sourceAddress);
+  return (
+    <span className="excerpt-citation">
+      <a className="excerpt-source" href={addressLink(context.projectId, citation.sourceAddress)} data-ref={citation.sourceAddress}>{citation.sourceTitle}</a>
+      <span aria-hidden="true"> · </span>
+      <Reference address={address} projectId={context.projectId} />
+    </span>
+  );
 }
 
 /** Plain text with project-member mentions highlighted. */
@@ -177,7 +194,7 @@ function inline(tokens: Token[] | undefined, context: Context, prefix: string): 
         break;
       }
       case "reference":
-        out.push(<Reference key={key} address={String((token as Tokens.Generic).address)} projectId={context.projectId} />);
+        out.push(<ContextualReference key={key} address={String((token as Tokens.Generic).address)} context={context} />);
         break;
       case "mathInline": {
         const math = token as Tokens.Generic;
@@ -272,11 +289,15 @@ function blocks(tokens: Token[], context: Context, prefix: string): ReactNode[] 
 
 const hasCheckbox = (token: Token): boolean => token.type === "checkbox" || Boolean((token as Tokens.Generic).tokens?.some(hasCheckbox));
 
-export const Markdown = memo(function Markdown({ text, className = "md" }: { text: string; className?: string }) {
+export const Markdown = memo(function Markdown({ text, className = "md", excerptSources }: {
+  text: string;
+  className?: string;
+  excerptSources?: ReadonlyMap<string, { sourceAddress: string; sourceTitle: string }>;
+}) {
   const { projectId, kinds } = useProject();
   const rendered = useMemo(
-    () => blocks(tokensFor(text), { projectId, kinds }, ""),
-    [text, projectId, kinds],
+    () => blocks(tokensFor(text), { projectId, kinds, excerptSources, expandedSources: new Set() }, ""),
+    [text, projectId, kinds, excerptSources],
   );
   return <div className={className}>{rendered}</div>;
 });

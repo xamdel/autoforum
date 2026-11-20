@@ -102,6 +102,9 @@ a.ref:hover, button.ref:hover { border-color: var(--gold); background: #fffaf0; 
 .ref-proposal, .ref-result { color: var(--ochre); }
 .ref-thread, .ref-post, .ref-source, .ref-excerpt, .ref-rel { color: var(--ink-soft); }
 .ref.pending { border-style: dashed; border-color: var(--gold); color: var(--muted); background: var(--gold-soft); }
+.excerpt-citation { color: var(--muted); }
+.excerpt-source { color: var(--ink-soft); font-size: 0.92em; text-decoration-color: var(--stone-dark); }
+.excerpt-source:hover { color: var(--pompeii-dark); }
 .address-card { position: fixed; z-index: 150; top: 0; left: 0; width: min(26rem, calc(100vw - 16px)); max-height: 18rem; overflow: hidden; padding: 0.55rem 0.8rem 0.7rem; background: var(--marble); border: 1px solid var(--stone-dark); border-radius: var(--radius); box-shadow: var(--shadow-raised); font-size: 0.88rem; line-height: 1.45; animation: rise 0.12s ease-out; }
 .address-card-kind { display: flex; align-items: center; gap: 0.35rem; font-family: var(--mono); font-size: 0.72rem; color: var(--muted); margin-bottom: 0.2rem; }
 .address-card-heading { display: block; font-family: var(--display); font-weight: 600; }

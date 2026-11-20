@@ -34,11 +34,12 @@ interface PostActions {
   ask(post: Post): void;
 }
 
-const PostView = memo(function PostView({ post, kind, objects, excerpts, resultsByProposal, turn, marked, threadId, projectId, actions }: {
+const PostView = memo(function PostView({ post, kind, objects, excerpts, excerptSources, resultsByProposal, turn, marked, threadId, projectId, actions }: {
   post: Post;
   kind: "human" | "agent" | undefined;
   objects: DiscourseObject[];
   excerpts: Excerpt[];
+  excerptSources: ReadonlyMap<string, { sourceAddress: string; sourceTitle: string }>;
   resultsByProposal: ReadonlyMap<string, ForumResult[]>;
   turn: AgentTurn | undefined;
   marked: string | null;
@@ -67,7 +68,7 @@ const PostView = memo(function PostView({ post, kind, objects, excerpts, results
           {post.replyToAddress ? <a className="reply-to muted" href={`${link(projectId, "t", threadId)}?at=${encodeURIComponent(post.replyToAddress)}`} data-ref={post.replyToAddress}>{icons.reply} {post.replyToAddress}</a> : null}
           <span className="post-id"><AddressChip address={post.address} /></span>
         </header>
-        <Markdown text={post.body} />
+        <Markdown text={post.body} excerptSources={excerptSources} />
         {excerpts.map((excerpt) => <span className="record-anchor" data-address={excerpt.address} key={excerpt.id} aria-hidden="true" />)}
         {objects.map((object) => (
           <ObjectCard key={object.id} object={object} results={resultsByProposal.get(object.address)} threadId={threadId} projectId={projectId} highlight={marked === object.address} />
@@ -204,6 +205,10 @@ export function ThreadPage({ threadId }: { threadId: number }) {
     for (const object of detail.objects) objectsByPost.set(object.bornInPostId, [...(objectsByPost.get(object.bornInPostId) ?? []), object]);
     const excerptsByPost = new Map<number, Excerpt[]>();
     for (const excerpt of detail.excerpts) excerptsByPost.set(excerpt.bornInPostId, [...(excerptsByPost.get(excerpt.bornInPostId) ?? []), excerpt]);
+    const excerptSources = new Map(detail.excerptCitations.map((citation) => [citation.excerptAddress, {
+      sourceAddress: citation.sourceAddress,
+      sourceTitle: citation.sourceTitle,
+    }]));
     const resultsByProposal = new Map<string, ForumResult[]>();
     for (const result of detail.results) {
       if (result.proposalAddress) resultsByProposal.set(result.proposalAddress, [...(resultsByProposal.get(result.proposalAddress) ?? []), result]);
@@ -218,7 +223,7 @@ export function ThreadPage({ threadId }: { threadId: number }) {
       ...detail.excerpts.map((excerpt) => ({ label: plainLine(excerpt.content, 70), detail: excerpt.address, insert: `[[${excerpt.address}]]`, kind: "excerpt" })),
       ...[...detail.posts].reverse().map((post) => ({ label: `@${post.author}: ${plainLine(post.body, 60)}`, detail: post.address, insert: `[[${post.address}]]`, kind: "post" })),
     ];
-    return { objectsByPost, excerptsByPost, resultsByProposal, addresses, nearby };
+    return { objectsByPost, excerptsByPost, excerptSources, resultsByProposal, addresses, nearby };
   }, [detail]);
 
   // The margin receives every turn, while posts show only the agent currently writing beneath its trigger post.
@@ -324,6 +329,7 @@ export function ThreadPage({ threadId }: { threadId: number }) {
               kind={kindById.get(post.authorId)}
               objects={objects}
               excerpts={excerpts}
+              excerptSources={derived.excerptSources}
               resultsByProposal={derived.resultsByProposal}
               turn={runningByPost.get(post.localId)}
               marked={here ? marked : null}

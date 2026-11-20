@@ -19,6 +19,11 @@ export interface AddressPreview {
   heading: string;
   content: string | null;
   truncated: boolean;
+  source?: {
+    address: string;
+    title: string;
+    locator: string | null;
+  };
 }
 
 const addressPattern = /^(thread|post|source|excerpt|result|question|claim|evidence|proposal|rel):([1-9]\d*)(?:#([a-z][a-z0-9_-]{0,63}))?$/;
@@ -308,6 +313,11 @@ export async function previewAddress(
       address: canonical,
       kind: parsed.prefix,
       heading: `Excerpt from [[${formatAddress("source", row.sourceLocalId)}]] ${row.title}${row.locator ? ` (${row.locator})` : ""}`,
+      source: {
+        address: formatAddress("source", row.sourceLocalId),
+        title: row.title,
+        locator: row.locator,
+      },
       ...content,
     };
   }
