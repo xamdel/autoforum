@@ -34,13 +34,13 @@ interface PostActions {
   ask(post: Post): void;
 }
 
-const PostView = memo(function PostView({ post, kind, objects, excerpts, resultsByProposal, turns, marked, threadId, projectId, actions }: {
+const PostView = memo(function PostView({ post, kind, objects, excerpts, resultsByProposal, turn, marked, threadId, projectId, actions }: {
   post: Post;
   kind: "human" | "agent" | undefined;
   objects: DiscourseObject[];
   excerpts: Excerpt[];
   resultsByProposal: ReadonlyMap<string, ForumResult[]>;
-  turns: AgentTurn[];
+  turn: AgentTurn | undefined;
   marked: string | null;
   threadId: number;
   projectId: number;
@@ -79,21 +79,21 @@ const PostView = memo(function PostView({ post, kind, objects, excerpts, results
           <button type="button" className="link" title="Talk to the Scribe about this post, privately, beside the page" onClick={() => actions.ask(post)}>Ask the Scribe</button>
         </footer>
       </article>
-      {turns.map((turn) => (
-        <div className={`typing ${turn.status}`} key={turn.id} role="status">
-          <Avatar handle={turn.agent} working={turn.status === "running"} size="small" />
+      {turn ? (
+        <div className="typing running" role="status">
+          <Avatar handle={turn.agent} working size="small" />
           <div className="typing-body">
-            <b>@{turn.agent}</b> {turn.status === "running" ? "is writing a reply" : "is queued to reply"}
+            <b>@{turn.agent}</b> is writing a reply
             <div className="typing-meta">
-              {turn.status === "running" ? <><Dots /> <Timer since={turn.startedAt ?? turn.createdAt} /> · </> : null}
+              <Dots /> <Timer since={turn.startedAt ?? turn.createdAt} /> ·{" "}
               {turn.provider}/{turn.model} · {turn.thinkingLevel} effort
             </div>
           </div>
           <button type="button" className="small" disabled={Boolean(turn.stopRequestedAt)} onClick={() => stopTurn(projectId, turn.id)}>
-            {turn.stopRequestedAt ? "Stopping…" : turn.status === "running" ? "Stop" : "Cancel"}
+            {turn.stopRequestedAt ? "Stopping…" : "Stop"}
           </button>
         </div>
-      ))}
+      ) : null}
     </>
   );
 });
@@ -221,13 +221,13 @@ export function ThreadPage({ threadId }: { threadId: number }) {
     return { objectsByPost, excerptsByPost, resultsByProposal, addresses, nearby };
   }, [detail]);
 
-  // This thread's turns: those in progress, by the post that asked for them.
+  // The margin receives every turn, while posts show only the agent currently writing beneath its trigger post.
   const postNumbers = useMemo(() => new Set(detail?.posts.map((post) => post.localId)), [detail]);
   const threadTurns = useMemo(() => (turns.data ?? []).filter((turn) => postNumbers.has(turn.triggerLocalId)), [turns.data, postNumbers]);
-  const activeByPost = useMemo(() => {
-    const map = new Map<number, AgentTurn[]>();
-    for (const turn of threadTurns) {
-      if (turn.status === "queued" || turn.status === "running") map.set(turn.triggerLocalId, [...(map.get(turn.triggerLocalId) ?? []), turn]);
+  const runningByPost = useMemo(() => {
+    const map = new Map<number, AgentTurn>();
+    for (const turn of [...threadTurns].sort((left, right) => left.id - right.id)) {
+      if (turn.status === "running" && !map.has(turn.triggerLocalId)) map.set(turn.triggerLocalId, turn);
     }
     return map;
   }, [threadTurns]);
@@ -325,7 +325,7 @@ export function ThreadPage({ threadId }: { threadId: number }) {
               objects={objects}
               excerpts={excerpts}
               resultsByProposal={derived.resultsByProposal}
-              turns={activeByPost.get(post.localId) ?? NONE}
+              turn={runningByPost.get(post.localId)}
               marked={here ? marked : null}
               threadId={threadId}
               projectId={projectId}

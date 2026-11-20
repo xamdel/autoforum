@@ -19,13 +19,17 @@ export async function findMentionedUserIds(client: PoolClient, projectId: number
   const handles = [...new Set([...body.matchAll(/(?:^|[^a-zA-Z0-9_-])@([a-z][a-z0-9_-]{1,31})\b/g)]
     .map((match) => match[1].toLowerCase()))];
   if (!handles.length) return [];
-  const result = await client.query<{ id: number }>(
-    `select u.row_id as id
+  const result = await client.query<{ id: number; handle: string }>(
+    `select u.row_id as id, lower(u.handle) as handle
        from forum_user u join project_member m on m.user_id = u.row_id
       where m.project_id = $1 and lower(u.handle) = any($2::text[]) and u.disabled_at is null`,
     [projectId, handles],
   );
-  return result.rows.map((row) => row.id);
+  const idsByHandle = new Map(result.rows.map((row) => [row.handle, row.id]));
+  return handles.flatMap((handle) => {
+    const id = idsByHandle.get(handle);
+    return id === undefined ? [] : [id];
+  });
 }
 
 export async function searchForum(database: AppDatabase, projectId: number, query: string) {

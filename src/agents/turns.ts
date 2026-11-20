@@ -144,13 +144,11 @@ async function promotePendingProjectTurns(client: PoolClient, projectId: number,
     if (ids.length === count) break;
   }
   if (!ids.length) return [];
-  const queued = await client.query<{ id: number }>(
-    `update agent_turn set status = 'queued'
-      where row_id = any($1::bigint[]) and status = 'pending'
-      returning row_id as id`,
+  await client.query(
+    "update agent_turn set status = 'queued' where row_id = any($1::bigint[]) and status = 'pending'",
     [ids],
   );
-  return queued.rows.map((row) => row.id);
+  return ids;
 }
 
 export interface ThreadTurnState {
@@ -234,13 +232,11 @@ export async function approvePendingTurns(
   if (nextProjectLimit !== project.limit) {
     await client.query("update project set agent_turn_limit = $2 where row_id = $1", [project.id, nextProjectLimit]);
   }
-  const queued = await client.query<{ id: number }>(
-    `update agent_turn set status = 'queued'
-      where row_id = any($1::bigint[]) and status = 'pending'
-      returning row_id as id`,
+  await client.query(
+    "update agent_turn set status = 'queued' where row_id = any($1::bigint[]) and status = 'pending'",
     [turnIds],
   );
-  const queuedIds = queued.rows.map((row) => row.id);
+  const queuedIds = [...turnIds];
   const additionallyQueued = await promotePendingTurns(
     client,
     thread.id,
@@ -268,9 +264,12 @@ export async function createMentionTurns(
         and u.kind = 'agent' and u.disabled_at is null and u.agent_config is not null`,
     [input.projectId, input.mentionedUserIds],
   );
-  const runnable = agents.rows
-    .map((agent) => ({ ...agent, parsed: parseAgentProfile(agent.profile) }))
-    .filter((agent) => agent.userId !== input.requestedByUserId);
+  const agentsByUserId = new Map(agents.rows.map((agent) => [agent.userId, agent]));
+  const runnable = input.mentionedUserIds.flatMap((userId) => {
+    const agent = agentsByUserId.get(userId);
+    if (!agent || agent.userId === input.requestedByUserId) return [];
+    return [{ ...agent, parsed: parseAgentProfile(agent.profile) }];
+  });
   if (!runnable.length) return [];
   const project = await lockProject(client, input.projectId);
   const thread = await lockTriggerThread(client, input.projectId, input.triggerPostId);
@@ -307,13 +306,11 @@ export async function createMentionTurns(
     if (projectLimit !== project.limit) {
       await client.query("update project set agent_turn_limit = $2 where row_id = $1", [project.id, projectLimit]);
     }
-    const queued = await client.query<{ id: number }>(
-      `update agent_turn set status = 'queued'
-        where row_id = any($1::bigint[]) and status = 'pending'
-        returning row_id as id`,
+    await client.query(
+      "update agent_turn set status = 'queued' where row_id = any($1::bigint[]) and status = 'pending'",
       [turnIds],
     );
-    queuedIds.push(...queued.rows.map((row) => row.id));
+    queuedIds.push(...turnIds);
   }
   queuedIds.push(...await promotePendingTurns(
     client,
@@ -389,7 +386,7 @@ export function createAgentTurnRoutes(
          join post p on p.row_id = a.trigger_post_id
          left join post output on output.row_id = a.output_post_id
         where a.project_id = $1 and ($2::bigint is null or p.thread_id = $2)
-        order by a.created_at desc limit 100`,
+        order by a.created_at desc, a.row_id desc limit 100`,
       [projectId, threadId],
     );
     return context.json({ turns: result.rows });

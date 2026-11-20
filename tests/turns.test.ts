@@ -6,6 +6,7 @@ import type { PoolClient } from "pg";
 
 import { approvePendingTurns, createAgentTurnRoutes, createMentionTurns, setProjectTurnLimit, setThreadTurnLimit } from "../src/agents/turns.ts";
 import type { AppDatabase } from "../src/db.ts";
+import { findMentionedUserIds } from "../src/forum/queries.ts";
 
 const profile = {
   provider: "openrouter",
@@ -13,6 +14,20 @@ const profile = {
   thinkingLevel: "low",
   systemPrompt: "Useful",
 };
+
+test("mentioned user ids follow their first appearance in the post", async () => {
+  const client = {
+    async query(_sql: string, values: unknown[]) {
+      assert.deepEqual(values, [7, ["mosaic-9", "turing"]]);
+      return { rows: [
+        { id: 4, handle: "turing" },
+        { id: 9, handle: "mosaic-9" },
+      ] };
+    },
+  } as unknown as PoolClient;
+  const ids = await findMentionedUserIds(client, 7, "@mosaic-9, then @turing, then @mosaic-9 again");
+  assert.deepEqual(ids, [9, 4]);
+});
 
 test("the owner can pause and resume the global forum-agent runner", async () => {
   let paused = false;
@@ -89,8 +104,8 @@ test("an agent-created thread with a one-turn allowance admits only its first op
   const client = {
     async query(sql: string, values: unknown[]) {
       if (sql.includes("from forum_user")) return { rows: [
-        { userId: 4, profile },
         { userId: 5, profile },
+        { userId: 4, profile },
       ] };
       if (sql.includes("from project where")) return { rows: [{ id: 1, limit: 100 }] };
       if (sql.includes("from thread t join post")) return { rows: [{ id: 9, limit: 1 }] };
@@ -120,8 +135,8 @@ test("an owner mention extends the thread limit and queues every mentioned proje
   const client = {
     async query(sql: string, values: unknown[]) {
       if (sql.includes("from forum_user")) return { rows: [
-        { userId: 4, profile },
         { userId: 5, profile },
+        { userId: 4, profile },
       ] };
       if (sql.includes("from project where")) return { rows: [{ id: 1, limit: 0 }] };
       if (sql.includes("from thread t join post")) return { rows: [{ id: 9, limit: 0 }] };
@@ -135,7 +150,7 @@ test("an owner mention extends the thread limit and queues every mentioned proje
         return { rows: [] };
       }
       if (sql.startsWith("update project set agent_turn_limit")) return { rows: [] };
-      if (sql.includes("update agent_turn set status = 'queued'")) return { rows: [{ id: 17 }, { id: 18 }] };
+      if (sql.includes("update agent_turn set status = 'queued'")) return { rows: [{ id: 18 }, { id: 17 }] };
       throw new Error(`Unexpected query: ${sql}`);
     },
   } as unknown as PoolClient;
@@ -185,7 +200,7 @@ test("approving selected waiting turns extends the limit by the selected batch",
         return { rows: [] };
       }
       if (sql.startsWith("update project set agent_turn_limit")) return { rows: [] };
-      if (sql.includes("update agent_turn set status = 'queued'")) return { rows: [{ id: 31 }, { id: 33 }] };
+      if (sql.includes("update agent_turn set status = 'queued'")) return { rows: [{ id: 33 }, { id: 31 }] };
       throw new Error(`Unexpected query: ${sql}`);
     },
   } as unknown as PoolClient;
@@ -228,7 +243,7 @@ test("raising the project allowance admits oldest pending turns only where their
       ] };
       if (sql.startsWith("update agent_turn set status = 'queued'")) {
         assert.deepEqual(values[0], [52, 53]);
-        return { rows: [{ id: 52 }, { id: 53 }] };
+        return { rows: [{ id: 53 }, { id: 52 }] };
       }
       throw new Error(`Unexpected query: ${sql}`);
     },

@@ -530,6 +530,8 @@ export async function startAgentRunner(
   );
   const modelRuntime = await piModelRuntime();
   await queue.workAgentTurns((turnId, signal) => executeTurn(database, modelRuntime, agentLog, queue.enqueueAgentTurns, turnId, signal));
-  const queued = await database.pool.query<{ id: number }>("select row_id as id from agent_turn where status = 'queued' order by created_at");
+  const queued = await database.pool.query<{ id: number }>(
+    "select row_id as id from agent_turn where status = 'queued' order by created_at, row_id",
+  );
   await queue.enqueueAgentTurns(queued.rows.map((row) => row.id));
 }

@@ -95,9 +95,10 @@ function Pane({
     );
   }
   const list = turns ?? [];
-  const running = list.filter((turn) => turn.status === "running");
-  const queued = list.filter((turn) => turn.status === "queued");
-  const waiting = list.filter((turn) => turn.status === "pending");
+  const oldestFirst = (left: AgentTurn, right: AgentTurn) => left.id - right.id;
+  const running = list.filter((turn) => turn.status === "running").sort(oldestFirst);
+  const queued = list.filter((turn) => turn.status === "queued").sort(oldestFirst);
+  const waiting = list.filter((turn) => turn.status === "pending").sort(oldestFirst);
   const finished = list.filter((turn) => !isActiveTurn(turn) && turn.status !== "pending");
   const since = Date.now() - 86_400_000;
   const day = list.filter((turn) => Date.parse(turn.createdAt) >= since);
