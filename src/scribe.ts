@@ -31,7 +31,6 @@ import { ensureProjectSource } from "./sources/library.ts";
 import { readRemoteSource } from "./sources/reader.ts";
 import { searchWeb } from "./sources/search.ts";
 
-const REPLY_TIMEOUT_MS = 15 * 60 * 1_000;
 const SOURCE_TOOL_LIMIT = 16_000;
 const WORKSPACE_READ_LIMIT = 256 * 1024;
 const WORKSPACE_COMMAND_OUTPUT_LIMIT = 128 * 1024;
@@ -373,12 +372,6 @@ export async function runScribe(
   ];
   if (selection.provider === "claude-code") {
     connectExternalAbort();
-    let timedOut = false;
-    const timeout = setTimeout(() => {
-      timedOut = true;
-      replyAbort.abort();
-    }, REPLY_TIMEOUT_MS);
-    timeout.unref();
     try {
       const result = await runClaudeScribe({
         prompt,
@@ -390,14 +383,12 @@ export async function runScribe(
         onToolActivity,
         onEvent: (message) => log(agentLog, "scribe.event", { conversationId, harness: "claude-code", message }),
       });
-      if (timedOut) throw new Error("scribe_timeout");
       if (externalSignal?.aborted) throw new Error("scribe_stopped");
       log(agentLog, "scribe.completed", { conversationId, harness: "claude-code", ...result });
       return result.text;
     } finally {
       disconnectExternalAbort();
       replyAbort.abort();
-      clearTimeout(timeout);
     }
   }
 
@@ -449,15 +440,8 @@ export async function runScribe(
   };
   replyAbort.signal.addEventListener("abort", abortSession, { once: true });
   connectExternalAbort();
-  let timedOut = false;
-  const timeout = setTimeout(() => {
-    timedOut = true;
-    replyAbort.abort();
-  }, REPLY_TIMEOUT_MS);
-  timeout.unref();
   try {
     await session.prompt(prompt);
-    if (timedOut) throw new Error("scribe_timeout");
     if (externalSignal?.aborted) throw new Error("scribe_stopped");
     const reply = lastAssistantText(session.state.messages);
     if (!reply) throw new Error("scribe_returned_no_text");
@@ -465,7 +449,6 @@ export async function runScribe(
     return reply;
   } finally {
     disconnectExternalAbort();
-    clearTimeout(timeout);
     replyAbort.signal.removeEventListener("abort", abortSession);
     replyAbort.abort();
     unsubscribe();
