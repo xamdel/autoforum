@@ -1,0 +1,60 @@
+/* The workspace shell's stylesheet: what the shell (shell-entry.jsx) draws around every project page in a sandbox.
+   It loads Autoforum's design system first, so the palette, type, and controls in here are the app's own, then adds
+   the column a page is set in and the shell's own chrome. A project page's CSS is bundled after both, so it can
+   refine either; see the top of design-system.css for how a page should be built.
+
+   For a page: put .page on the root of an ordinary page. Leave it off a page that fills the window (a canvas, a
+   graph editor) and give that root `flex: 1` instead; the shell is a column and the page takes what is left.
+   The .workspace-* classes belong to the shell: a page should not use or restyle them. */
+
+@import "./design-system.css";
+
+html, body, #root { min-height: 100%; }
+/* The forum's ground never scrolls; here the page does, so the ground is pinned to the window to look the same. */
+body { min-width: 320px; background-attachment: fixed; }
+
+/* The column an ordinary page is set in: the measure and gutters of a page in the forum. */
+.page { width: 100%; padding: 1.7rem max(1.6rem, calc((100% - 1240px) / 2)) 4.5rem; }
+
+/* ------------------------------------------------------------------ The shell's chrome */
+
+.workspace-shell { min-height: 100vh; display: flex; flex-direction: column; }
+
+/* Over an open page: the way back to the list of pages, then the page's name. It is the only bar the shell draws;
+   the sandbox's state and its controls are Autoforum's, in the bar above this frame. */
+.workspace-crumbs { flex: none; display: flex; align-items: center; gap: 0.45rem; min-height: 2rem; margin: 0; padding: 0.2rem 0.9rem; background: rgba(251, 248, 241, 0.72); border-bottom: 1px solid var(--stone); white-space: nowrap; }
+.workspace-crumbs [aria-current] { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+/* The newest change did not build, so the last good build is still what is shown. */
+.workspace-build-error { flex: none; padding: 0.4rem 0.9rem; color: #6b5121; background: var(--ochre-soft); border-bottom: 1px solid #e6d2a8; box-shadow: inset 3px 0 var(--gold); font-size: 0.86rem; }
+.workspace-build-error details { display: inline; margin-left: 0.5rem; }
+.workspace-build-error summary { display: inline; color: var(--pompeii-dark); cursor: pointer; }
+.workspace-build-error summary:hover { text-decoration: underline; text-decoration-color: var(--gold); text-underline-offset: 3px; }
+.workspace-build-error pre { max-height: 14rem; margin: 0.5rem 0 0.2rem; color: var(--ink); white-space: pre-wrap; }
+
+/* The list of pages: what opens when the workspace does. */
+.workspace-home { padding-top: clamp(2rem, 5vw, 3.5rem); }
+.workspace-home h1 { margin: 0.35rem 0 0.6rem; font-size: clamp(1.7rem, 4vw, 2.5rem); }
+.workspace-home .lede { max-width: 39rem; line-height: 1.65; }
+.workspace-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); gap: 0.75rem; margin-top: 1.8rem; }
+.workspace-card { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 0.9rem; min-height: 6.5rem; margin: 0; color: var(--ink); transition: border-color 0.12s, box-shadow 0.12s; }
+.workspace-card:hover { border-color: var(--gold); box-shadow: 0 3px 12px rgba(70, 45, 20, 0.12); text-decoration: none; }
+.workspace-card-icon { width: 2.4rem; height: 2.4rem; display: grid; place-items: center; color: var(--pompeii-dark); background: var(--gold-soft); border: 1px solid #dbc38b; border-radius: var(--radius); font-size: 1.1rem; font-weight: 700; }
+.workspace-card strong, .workspace-card small { display: block; }
+.workspace-card strong { margin-bottom: 0.2rem; font-family: var(--display); font-variant: small-caps; letter-spacing: 0.04em; }
+.workspace-card small { color: var(--muted); font-size: 0.86rem; line-height: 1.4; }
+.workspace-card-arrow { color: var(--gold); }
+
+/* Nothing to show: no pages yet, no such page, or a page that threw while rendering. */
+.workspace-message { max-width: 40rem; margin: 2rem auto; font-style: normal; }
+.workspace-message h1 { font-size: 1.3rem; }
+.workspace-message pre { text-align: left; white-space: pre-wrap; }
+.workspace-home .workspace-message { margin: 1.8rem 0 0; }
+
+/* A frame this narrow is a phone, or the dock pulled wide: tighter gutters, and a page's actions drop under its h1. */
+@media (max-width: 600px) {
+  .page { padding: 1.2rem 1rem 3rem; }
+  .head-row { flex-wrap: wrap; }
+  .workspace-crumbs { padding-inline: 0.7rem; }
+  .workspace-grid { grid-template-columns: 1fr; }
+}

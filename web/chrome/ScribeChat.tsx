@@ -1,5 +1,5 @@
 // The Scribe's chat: the one place you talk to it, docked beside whatever page you are on. Everything else that
-// mentions the Scribe ("Ask the Scribe" on a post, a proposal, an artifact) opens this with something to start from.
+// mentions the Scribe ("Ask the Scribe" on a post or proposal) opens this with something to start from.
 //
 // A conversation is private to you. Its header names it and switches between conversations; a bar under the header
 // says what it is about when it was started from a thread or a record. Your messages sit on the right; the Scribe's
@@ -158,7 +158,7 @@ function AnchorBar({ projectId, address, onClear }: { projectId: number; address
 
 function suggestionsFor(page: string | undefined, anchor: string | null): string[] {
   if (anchor) return [`Summarize the discussion in [[${anchor}]] so far.`, `Which claims in [[${anchor}]] still lack evidence?`, `Draft a reply for [[${anchor}]] that `];
-  if (page === "workspace") return ["What is in the workspace right now?", "Build a page under artifacts/ that ", "Run the project's tests and tell me what fails."];
+  if (page === "workspace") return ["What is in the workspace right now?", "Build a workspace page that ", "Run the project's tests and tell me what fails."];
   return ["What has this project been discussing lately?", "Find what the forum says about ", "Draft a new thread about "];
 }
 

@@ -1,42 +1,16 @@
-// What a thread opens beside itself, in the dock: a workspace artifact, a proposal with its results, or one result.
-// Each has a way to the fuller view (the Workspace page for an artifact) and to the Scribe.
+// What a thread opens beside itself in the dock: a proposal with its results, or one result.
 
 import type { DiscourseObject, ForumResult, ThreadDetail } from "../lib/api.ts";
 import { plural } from "../lib/format.ts";
 import { addressLink } from "../lib/router.ts";
-import { FileView } from "../components/FileView.tsx";
 import { Markdown, Reference } from "../components/Markdown.tsx";
 import { ResultOutputs } from "../components/Records.tsx";
 import { AddressChip, Badge, Empty, icons, KindIcon, Loading, PanelFrame, Time } from "../components/ui.tsx";
-import { closeDockView, openDockView, openInWorkspace, type DockView } from "../state/dock.ts";
+import { closeDockView, openDockView, type DockView } from "../state/dock.ts";
 import { appendToReply } from "../state/drafts.ts";
 import { useProject } from "../state/project.tsx";
-import { useConversations, useThread } from "../state/queries.ts";
+import { useThread } from "../state/queries.ts";
 import { askScribe } from "../state/scribe.ts";
-
-function ArtifactPanel({ path }: { path: string }) {
-  const { projectId } = useProject();
-  const conversations = useConversations(projectId, true);
-  const working = (conversations.data ?? []).some((conversation) => conversation.status === "running");
-  const name = path.split("/").pop() ?? path;
-  return (
-    <PanelFrame
-      label="Artifact"
-      title={<><KindIcon kind="artifact" /> <span className="panel-file" title={path}>{name}</span></>}
-      onClose={closeDockView}
-      actions={
-        <>
-          <button type="button" className="small" title="Ask the Scribe for a change to this" onClick={() => askScribe(projectId, { text: `In \`${path}\`: ` })}>{icons.quill} Ask</button>
-          <button type="button" className="small" title="Open it on the Workspace page, with the files and the Scribe beside it" onClick={() => openInWorkspace(projectId, path)}>Workspace {icons.expand}</button>
-        </>
-      }
-    >
-      <div className="panel-body flush">
-        <FileView key={path} path={path} refreshEvery={working ? 5_000 : null} />
-      </div>
-    </PanelFrame>
-  );
-}
 
 function ResultSection({ result, threadId, open }: { result: ForumResult; threadId: number; open?: boolean }) {
   return (
@@ -148,8 +122,7 @@ function ResultPanel({ result, detail }: { result: ForumResult; detail: ThreadDe
 
 export default function Inspector({ view }: { view: DockView }) {
   const { projectId } = useProject();
-  const thread = useThread(projectId, view.kind === "artifact" ? null : view.threadId);
-  if (view.kind === "artifact") return <ArtifactPanel path={view.path} />;
+  const thread = useThread(projectId, view.threadId);
   const detail = thread.data;
   if (!detail) return <PanelFrame label="Loading" title="…" onClose={closeDockView}><div className="panel-body"><Loading /></div></PanelFrame>;
   if (view.kind === "proposal") {

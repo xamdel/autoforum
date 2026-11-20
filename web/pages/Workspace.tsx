@@ -1,11 +1,11 @@
-// The Workspace: the project's sandbox, read-only from here. One bar across the top holds the sandbox's state and
-// controls; under it, the artifacts and the file tree on the left and one thing at a time in the middle: the gallery
-// of artifacts, a file, or the project-owned application. The Scribe's chat is docked on the right (it is the only thing that
-// changes the workspace), so asking for a change and watching it land happen side by side.
+// The Workspace: the project's sandbox, read-only from here. One slim bar says the sandbox's state and holds the
+// lifecycle and supporting controls; the image-owned workspace shell is the canvas, drawn from the same design
+// system as this app (sandbox/workspace-shell/). Source files remain available in an on-demand drawer. The Scribe's
+// chat is docked on the right (it is the only thing that changes the workspace), so asking for a change and watching
+// it land happen side by side.
 //
-//   #/<project>/workspace              the gallery
+//   #/<project>/workspace              the image-owned workspace shell
 //   #/<project>/workspace?file=<path>  one file
-//   #/<project>/workspace?live=1       the project-owned server on port 8080
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
@@ -13,15 +13,15 @@ import "../styles/workspace.css";
 
 import {
   api, ApiError,
-  type ModelApiKeyProvider, type ServiceAccessStatus, type ResetPreview, type SandboxStatus, type WorkspaceEntry, type WorkspaceView,
+  type ModelApiKeyProvider, type ServiceAccessStatus, type ResetPreview, type SandboxStatus, type WorkspaceEntry,
 } from "../lib/api.ts";
 import { bytes, describeError, plural } from "../lib/format.ts";
 import { invalidate } from "../lib/query.ts";
 import { navigate, path, useRoute } from "../lib/router.ts";
-import { FileView, LiveApplication, startSandbox } from "../components/FileView.tsx";
+import { FileView, startSandbox, WorkspaceShell } from "../components/FileView.tsx";
 import { Badge, ConfirmButton, Empty, flash, flashFailure, icons, Loading, Modal, Popover, Switch } from "../components/ui.tsx";
 import { useProject } from "../state/project.tsx";
-import { keys, useConversations, useModelApiKeys, useSandbox, useServiceAccess, useTree, useUsage, useViews } from "../state/queries.ts";
+import { keys, useConversations, useModelApiKeys, useSandbox, useServiceAccess, useTree, useUsage } from "../state/queries.ts";
 import { askScribe, chat } from "../state/scribe.ts";
 
 interface TreeNode {
@@ -237,12 +237,12 @@ function ServiceAccessMenu({ running }: { running: boolean }) {
       button={({ open, toggle }) => (
         <button
           type="button"
-          className={`small service-access-trigger ${open ? "on" : ""} ${active ? "active" : ""}`}
+          className={`small ws-tool service-access-trigger ${open ? "on" : ""} ${active ? "active" : ""}`}
           aria-expanded={open}
           onClick={toggle}
           title={active ? `${active} active; next grant expires in ${grantCountdown(nextExpiry, clock)}` : "Authenticated service access for sandbox code"}
         >
-          <span className="service-access-bolt">{icons.bolt}</span> Service access
+          <span className="service-access-bolt">{icons.bolt}</span> Services
           {active ? <span className="service-access-countdown">{active > 1 ? `${active} / ` : ""}{grantCountdown(nextExpiry, clock)}</span> : null}
           {busy ? <span className="service-access-spinner" aria-label={busy.label} /> : null}
         </button>
@@ -384,101 +384,153 @@ function ServiceAccessMenu({ running }: { running: boolean }) {
   );
 }
 
+/** A start or stop that has been asked for and not yet seen in the sandbox's state. */
+type Transition = "starting" | "stopping" | null;
+
+/** The two states the switch moves between, in words. */
+const RESTING = { on: "Sandbox running", off: "Sandbox stopped" };
+
+/** What the bar says and does about the sandbox: a dot (green when on, red when stopped), the state in words, and the
+ *  switch that starts or stops it. The switch moves at once and holds there until the new state has been read. */
+function SandboxSwitch({ status, failed, scribeBusy, transition, onStart, onStop }: {
+  status: SandboxStatus | undefined; failed: boolean; scribeBusy: boolean; transition: Transition; onStart(): void; onStop(): void;
+}) {
+  const state = status?.state;
+  const running = state === "running";
+  const label = transition === "starting" ? "Starting…" : transition === "stopping" ? "Stopping…"
+    : running ? (scribeBusy ? "The Scribe is working" : RESTING.on)
+      : state === "stopped" ? RESTING.off
+        : state === "absent" ? "No sandbox yet"
+          : failed ? "State unknown" : "…";
+  const on = transition ? transition === "starting" : running;
+  const startable = Boolean(status?.imageAvailable);
+  return (
+    <span className="ws-state">
+      <i className={`ws-state-dot ${state ?? "unknown"} ${transition || scribeBusy ? "busy" : ""}`} aria-hidden="true" />
+      <span className="ws-state-label">
+        <span role="status">{label}</span>
+        {/* Unseen copies of the two resting states hold the label's width, so the switch does not move when thrown. */}
+        <span className="ws-state-sizer" aria-hidden="true">{RESTING.on}</span>
+        <span className="ws-state-sizer" aria-hidden="true">{RESTING.off}</span>
+      </span>
+      <Switch
+        checked={on}
+        label={on ? "Stop the sandbox" : "Start the sandbox"}
+        title={on ? "Stop the sandbox. Its pages, files, and Git history are kept." : startable || !status ? "Start the sandbox" : "The sandbox image has not been built on this machine"}
+        disabled={Boolean(transition) || !status || (!running && !startable)}
+        onChange={(next) => (next ? onStart() : onStop())}
+      />
+    </span>
+  );
+}
+
 function Controls({ status }: { status: SandboxStatus | undefined }) {
   const { projectId } = useProject();
-  const usage = useUsage(projectId, status?.state === "running");
-  const [busy, setBusy] = useState(false);
-  const [resetting, setResetting] = useState(false);
   const running = status?.state === "running";
-  const stop = () => {
-    setBusy(true);
-    // Only the state is asked for again: a stopped sandbox has no files to read until it is started.
-    api(`/projects/${projectId}/sandbox/stop`, { method: "POST" }).then(() => {
-      invalidate(keys.sandbox(projectId));
-      invalidate(keys.serviceAccess(projectId));
-    }, flashFailure).finally(() => setBusy(false));
-  };
+  const usage = useUsage(projectId, running);
+  const [resetting, setResetting] = useState(false);
   return (
     <div className="ws-tools">
-      {usage.data && running ? <span className="muted ws-usage">{plural(usage.data.files, "file")} · {bytes(usage.data.bytes)}</span> : null}
-      <ServiceAccessMenu running={running} />
-      {running
-        ? <ConfirmButton label="Stop" confirm="Click again to stop" className="small" disabled={busy} onConfirm={stop} />
-        : <button type="button" className="primary small" disabled={busy || !status || !status.imageAvailable} onClick={() => (setBusy(true), void startSandbox(projectId).finally(() => setBusy(false)))}>{busy ? "Starting…" : "Start"}</button>}
-      {status && status.state !== "absent" ? <button type="button" className="small danger" onClick={() => setResetting(true)}>Reset…</button> : null}
+      {running ? <ServiceAccessMenu running /> : null}
+      {status && status.state !== "absent" ? (
+        <Popover
+          label="Workspace controls"
+          className="menu"
+          button={({ open, toggle }) => (
+            <button type="button" className={`small ws-tool ws-more ${open ? "on" : ""}`} aria-expanded={open} onClick={toggle} title="Workspace controls" aria-label="Workspace controls">•••</button>
+          )}
+        >
+          {(close) => (
+            <>
+              {usage.data && running ? <div className="menu-note">{plural(usage.data.files, "file")} · {bytes(usage.data.bytes)} in the workspace</div> : null}
+              <button type="button" className="menu-item bad" onClick={() => (close(), setResetting(true))}>Reset workspace…</button>
+            </>
+          )}
+        </Popover>
+      ) : null}
       {resetting ? <ResetDialog onClose={() => setResetting(false)} /> : null}
     </div>
   );
 }
 
-function Gallery({ views, applicationAvailable, onOpen, onOpenApplication }: {
-  views: WorkspaceView[] | undefined;
-  applicationAvailable: boolean;
-  onOpen(path: string): void;
-  onOpenApplication(): void;
-}) {
-  const { projectId } = useProject();
-  const starters = [
-    "Build a page under artifacts/ that ",
-    "Write artifacts/notes.md summarizing ",
-    "Implement the latest proposal and publish its outputs as a result. ",
-  ];
-  return (
-    <div className="gallery">
-      {!views ? <Loading /> : views.length || applicationAvailable ? (
-        <div className="cards">
-          {applicationAvailable ? (
-            <button type="button" className="card-tile application-tile" title="Open the application running on port 8080" onClick={onOpenApplication}>
-              <div className="tile-cover"><span className="tile-kind">{icons.play}</span></div>
-              <div className="tile-text">
-                <b>Application</b>
-                <span className="small live-on"><i className="nav-dot running" /> running</span>
-              </div>
-            </button>
-          ) : null}
-          {views.map((view) => (
-            <button type="button" className="card-tile" key={view.path} title={view.path} onClick={() => onOpen(view.path)}>
-              <div className="tile-cover"><span className="tile-kind">{view.kind === "html" ? "</>" : "¶"}</span></div>
-              <div className="tile-text">
-                <b>{view.path.replace(/^artifacts\//, "")}</b>
-                <span className="muted small">{view.kind === "html" ? "page" : "document"}{view.size === null ? "" : ` · ${bytes(view.size)}`}</span>
-              </div>
-            </button>
-          ))}
-        </div>
-      ) : (
-        <div className="gallery-empty">
-          <span className="chat-intro-mark">{icons.artifact}</span>
-          <h3>No artifacts yet</h3>
-          <p className="muted">Documents and pages under <code>artifacts/</code> show here. Ask the Scribe, beside this page, to make one:</p>
-          <div className="chat-starters">
-            {starters.map((starter) => <button type="button" key={starter} onClick={() => askScribe(projectId, { text: starter })}>{starter.trimEnd()}…</button>)}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function Stopped({ status, error }: { status: SandboxStatus | undefined; error: Error | null }) {
-  const { projectId } = useProject();
-  const [busy, setBusy] = useState(false);
+function Stopped({ status, error, starting, onStart }: { status: SandboxStatus | undefined; error: Error | null; starting: boolean; onStart(): void }) {
   if (error && !status) {
     const engine = error instanceof ApiError && error.status === 503;
     return <Empty>{engine ? "The container engine (Podman) is not reachable, so the sandbox's state is unknown." : describeError(error)}</Empty>;
   }
   if (!status) return <Loading />;
   return (
-    <div className="gallery-empty">
-      <span className="chat-intro-mark">{icons.folder}</span>
-      <h3>{status.state === "absent" ? "This project's sandbox has not been started" : "The sandbox is stopped"}</h3>
+    <div className="ws-startup">
+      <span className="ws-startup-mark">{icons.folder}</span>
+      <p className="eyebrow">Project workspace</p>
+      <h1>{status.state === "absent" ? "Start building this workspace" : "The workspace is resting"}</h1>
       {status.imageAvailable ? (
         <>
-          <p className="muted">{status.state === "absent" ? "Starting it creates an empty workspace with its own Git repository." : "Its files are kept. Start it to browse them, or to let the Scribe work in it."}</p>
-          <button type="button" className="primary" disabled={busy} onClick={() => (setBusy(true), void startSandbox(projectId).finally(() => setBusy(false)))}>{busy ? "Starting…" : "Start the sandbox"}</button>
+          <p className="muted">{status.state === "absent" ? "Starting creates a persistent project workspace where the Scribe can build pages and reusable modules." : "Its pages, files, and Git history are preserved. Start it to use them or continue working with the Scribe."}</p>
+          <button type="button" className="primary" disabled={starting} onClick={onStart}>{starting ? "Starting…" : "Start workspace"}</button>
         </>
-      ) : <p className="muted">The sandbox image has not been built on this machine. Run <code>npm run sandbox:build</code>, then start it here.</p>}
+      ) : <p className="muted">The sandbox image has not been built on this machine. Run <code>pnpm sandbox:build</code>, then start it here.</p>}
     </div>
+  );
+}
+
+function FilesDrawer({ shown, nodes, open, active, fresh, error, loading, onClose, onOpen, onRefresh, onToggle }: {
+  shown: boolean;
+  nodes: TreeNode[];
+  open: ReadonlySet<string>;
+  active: string | null;
+  fresh: ReadonlySet<string>;
+  error: Error | null;
+  loading: boolean;
+  onClose(): void;
+  onOpen(path: string): void;
+  onRefresh(): void;
+  onToggle(path: string): void;
+}) {
+  const drawer = useRef<HTMLElement>(null);
+  const latestClose = useRef(onClose);
+  latestClose.current = onClose;
+  useEffect(() => {
+    if (!shown) return;
+    const previous = document.activeElement as HTMLElement | null;
+    const controls = () => [...(drawer.current?.querySelectorAll<HTMLElement>('button:not(:disabled), [href], [tabindex]:not([tabindex="-1"])') ?? [])];
+    controls()[0]?.focus();
+    const key = (event: KeyboardEvent) => {
+      if (event.key === "Escape") return latestClose.current();
+      if (event.key !== "Tab") return;
+      const focusable = controls();
+      const first = focusable[0];
+      const last = focusable.at(-1);
+      if (!first || !last) return;
+      if (event.shiftKey && document.activeElement === first) (event.preventDefault(), last.focus());
+      else if (!event.shiftKey && document.activeElement === last) (event.preventDefault(), first.focus());
+    };
+    window.addEventListener("keydown", key);
+    return () => {
+      window.removeEventListener("keydown", key);
+      previous?.focus();
+    };
+  }, [shown]);
+  if (!shown) return null;
+  return (
+    <>
+      <button type="button" className="ws-drawer-scrim" aria-label="Close workspace files" onClick={onClose} />
+      <aside id="workspace-files" className="ws-files-drawer" role="dialog" aria-modal="true" aria-label="Workspace files" ref={drawer}>
+        <header className="ws-drawer-head">
+          <span><strong>Files</strong><small>Read-only workspace source</small></span>
+          <span className="row">
+            <button type="button" className="icon-button tiny" title="Refresh files" aria-label="Refresh files" onClick={onRefresh}>{icons.refresh}</button>
+            <button type="button" className="icon-button" title="Close files" aria-label="Close files" onClick={onClose}>{icons.close}</button>
+          </span>
+        </header>
+        <div className="ws-drawer-tree">
+          {error && loading ? <p className="error-text small rail-empty">{describeError(error)}</p>
+            : loading ? <p className="muted small rail-empty">Loading…</p>
+              : nodes.length ? <Tree nodes={nodes} depth={0} open={open} toggle={onToggle} active={active} fresh={fresh} onOpen={onOpen} />
+                : <p className="muted small rail-empty">The workspace is empty.</p>}
+        </div>
+      </aside>
+    </>
   );
 }
 
@@ -486,18 +538,17 @@ export default function Workspace() {
   const { projectId, isOwner } = useProject();
   const route = useRoute();
   const file = route.query.get("file");
-  const live = route.query.get("live") === "1";
   const conversations = useConversations(projectId, isOwner);
   const pending = chat.use().pending;
   const scribeBusy = (conversations.data ?? []).some((conversation) => conversation.status === "running" || pending[conversation.id]);
   const sandbox = useSandbox(projectId, isOwner, true);
   const running = sandbox.data?.state === "running";
-  const applicationAvailable = sandbox.data?.applicationAvailable === true;
-  // While the Scribe works the tree is watched; otherwise it is read once and after each reply.
+  const [filesOpen, setFilesOpen] = useState(false);
+  const [transition, setTransition] = useState<Transition>(null);
+  // The source tree is loaded only for the drawer; while it is open, Scribe work is watched for new files.
   const watch = scribeBusy ? 5_000 : null;
-  const tree = useTree(projectId, isOwner && running, watch);
-  const views = useViews(projectId, isOwner && running, watch);
-  const [open, setOpen] = useState<ReadonlySet<string>>(() => new Set(["artifacts"]));
+  const tree = useTree(projectId, isOwner && running && filesOpen, watch);
+  const [open, setOpen] = useState<ReadonlySet<string>>(() => new Set(["pages", "modules"]));
   const [fresh, setFresh] = useState<ReadonlySet<string>>(new Set());
   const known = useRef<Set<string> | null>(null);
   const nodes = useMemo(() => buildTree(tree.data ?? []), [tree.data]);
@@ -535,26 +586,47 @@ export default function Workspace() {
     });
   }, [file]);
 
+  useEffect(() => {
+    if (!running) setFilesOpen(false);
+  }, [running]);
+
   if (!isOwner) {
     return (
       <div className="ws-closed">
-        <Empty>The Workspace is the project sandbox: files, artifacts, and an optional server-backed application. In this version only the installation's owner can open it. What it produces reaches the forum as results and posts.</Empty>
+        <Empty>The Workspace is the project sandbox: project pages, reusable modules, generated outputs, and source files. In this version only the installation's owner can open it. What it produces reaches the forum as results and posts.</Empty>
       </div>
     );
   }
 
-  const openFile = (target: string) => navigate(`${path(projectId, "workspace")}?file=${encodeURIComponent(target)}`);
+  const openFile = (target: string) => {
+    setFilesOpen(false);
+    navigate(`${path(projectId, "workspace")}?file=${encodeURIComponent(target)}`);
+  };
   const toggle = (directory: string) => setOpen((current) => {
     const next = new Set(current);
     if (!next.delete(directory)) next.add(directory);
     return next;
   });
-  const state = sandbox.data?.state;
+
+  // Starting and stopping are owned here, so the bar's switch and the resting screen's button act as one. Either
+  // way the sandbox's state is read again before the transition is let go, so the switch never flicks back between.
+  const settle = () => sandbox.refetch().finally(() => setTransition(null));
+  const start = () => {
+    if (transition) return;
+    setTransition("starting");
+    void startSandbox(projectId).then(settle);
+  };
+  const stop = () => {
+    if (transition) return;
+    setTransition("stopping");
+    // Only the state is asked for again: a stopped sandbox has no files to read until it is started.
+    void api(`/projects/${projectId}/sandbox/stop`, { method: "POST" })
+      .then(() => invalidate(keys.serviceAccess(projectId)), flashFailure)
+      .then(settle);
+  };
 
   let stage: ReactNode;
-  if (!running) stage = <Stopped status={sandbox.data} error={sandbox.error} />;
-  else if (live && applicationAvailable) stage = <LiveApplication onClose={() => navigate(path(projectId, "workspace"))} />;
-  else if (live) stage = <Empty>No server-backed application is answering on port 8080.</Empty>;
+  if (!running) stage = <Stopped status={sandbox.data} error={sandbox.error} starting={transition === "starting"} onStart={start} />;
   else if (file) {
     stage = (
       <FileView
@@ -564,50 +636,55 @@ export default function Workspace() {
         extra={<button type="button" className="link" title="Ask the Scribe for a change to this file" onClick={() => askScribe(projectId, { text: `In \`${file}\`: ` })}>{icons.quill} Ask the Scribe</button>}
       />
     );
-  } else stage = <Gallery
-    views={views.data}
-    applicationAvailable={applicationAvailable}
-    onOpen={openFile}
-    onOpenApplication={() => navigate(`${path(projectId, "workspace")}?live=1`)}
-  />;
+  } else stage = <WorkspaceShell />;
 
   return (
     <div className="ws">
+      <h1 className="visually-hidden">Workspace</h1>
       <header className="ws-bar small">
         <div className="ws-where">
-          {file || live ? <button type="button" className="link" onClick={() => navigate(path(projectId, "workspace"))}>← Artifacts</button> : <span className="ws-title">Workspace</span>}
-          <span className={`ws-state ${state ?? "unknown"}`}>
-            <i className={`nav-dot dark ${state ?? "unknown"} ${scribeBusy ? "busy" : ""}`} />
-            {state === "running" ? (scribeBusy ? "the Scribe is working in it" : "sandbox running") : state === "stopped" ? "sandbox stopped" : state === "absent" ? "no sandbox yet" : "…"}
-          </span>
+          {/* On the left, over the edge its drawer opens from. It stays in place when the sandbox is off, so the switch beside it does not move when thrown. */}
+          <button
+            type="button"
+            className={`small ws-tool ${filesOpen ? "on" : ""}`}
+            aria-expanded={filesOpen}
+            aria-controls="workspace-files"
+            disabled={!running}
+            title={running ? "The workspace's source files, read-only" : "Start the sandbox to browse its files"}
+            onClick={() => setFilesOpen((value) => !value)}
+          >
+            {icons.folder} Files
+          </button>
+          {file ? <button type="button" className="link" onClick={() => navigate(path(projectId, "workspace"))}>← Workspace</button> : null}
+          <SandboxSwitch
+            status={sandbox.data}
+            failed={Boolean(sandbox.error && !sandbox.data)}
+            scribeBusy={scribeBusy}
+            transition={transition}
+            onStart={start}
+            onStop={stop}
+          />
         </div>
         <Controls status={sandbox.data} />
+        {running && scribeBusy ? <span className="ws-activity" aria-hidden="true" /> : null}
       </header>
       <div className="ws-body">
-        {running ? (
-          <nav className="ws-rail" aria-label="Workspace files">
-            <div className="rail-head">Artifacts</div>
-            {applicationAvailable ? (
-              <button type="button" className={`tree-row artifact application ${live ? "active" : ""}`} title="Application running on port 8080" onClick={() => navigate(`${path(projectId, "workspace")}?live=1`)}>
-                <span className="application-icon">{icons.play}</span>Application <i className="nav-dot running" />
-              </button>
-            ) : null}
-            {views.data?.length ? views.data.map((view) => (
-              <button type="button" key={view.path} className={`tree-row artifact ${file === view.path ? "active" : ""} ${fresh.has(view.path) ? "fresh" : ""}`} title={view.path} onClick={() => openFile(view.path)}>
-                <span className="tile-kind small">{view.kind === "html" ? "</>" : "¶"}</span>{view.path.replace(/^artifacts\//, "")}
-              </button>
-            )) : !applicationAvailable ? <p className="muted small rail-empty">{views.data ? "None yet." : "…"}</p> : null}
-            <div className="rail-head">
-              Files
-              <button type="button" className="icon-button tiny" title="Read the tree again" aria-label="Refresh the file tree" onClick={() => invalidate(keys.workspace(projectId))}>{icons.refresh}</button>
-            </div>
-            {tree.error && !tree.data ? <p className="error-text small rail-empty">{describeError(tree.error)}</p>
-              : !tree.data ? <p className="muted small rail-empty">…</p>
-                : nodes.length ? <Tree nodes={nodes} depth={0} open={open} toggle={toggle} active={file} fresh={fresh} onOpen={openFile} />
-                  : <p className="muted small rail-empty">The workspace is empty.</p>}
-          </nav>
-        ) : null}
         <section className="ws-stage">{stage}</section>
+        {running ? (
+          <FilesDrawer
+            shown={filesOpen}
+            nodes={nodes}
+            open={open}
+            active={file}
+            fresh={fresh}
+            error={tree.error}
+            loading={!tree.data}
+            onClose={() => setFilesOpen(false)}
+            onOpen={openFile}
+            onRefresh={() => invalidate(keys.workspace(projectId))}
+            onToggle={toggle}
+          />
+        ) : null}
       </div>
     </div>
   );

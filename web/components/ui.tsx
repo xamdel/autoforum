@@ -57,14 +57,13 @@ export const icons = {
   excerpt: line(<path d="M5 17c2 0 3.5-1.5 3.5-4V8H4.5v5H7M14.5 17c2 0 3.5-1.5 3.5-4V8h-4v5h2.5" />, 15),
   result: line(<path d="M4 20h16M7 20v-6M12 20V6M17 20v-9" />, 15),
   source: line(<path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3zM5 17a3 3 0 0 1 3-3h11" />, 15),
-  artifact: line(<><rect x="4" y="4" width="16" height="16" rx="1.5" /><path d="M4 9h16M9 9v11" /></>, 15),
 } as const;
 
 export type IconName = keyof typeof icons;
 
 const KIND_ICONS: Record<string, IconName> = {
   thread: "thread", post: "post", question: "question", claim: "claim", evidence: "evidence", proposal: "proposal",
-  relation: "relation", rel: "relation", excerpt: "excerpt", result: "result", source: "source", artifact: "artifact",
+  relation: "relation", rel: "relation", excerpt: "excerpt", result: "result", source: "source",
   agent: "bolt", human: "people",
 };
 

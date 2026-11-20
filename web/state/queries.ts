@@ -6,7 +6,7 @@ import {
   type AddressPreview, type AgentRecord, type AgentRunnerStatus, type AgentTurn, type Backlink, type BrowserSession, type ChatMessage,
   type ChatgptAccess, type ClaudeCodeAccess, type Conversation, type McpCredential, type Member, type ModelApiKeyProvider, type Project, type SandboxStatus, type SearchHit, type Source,
   type ModelCatalogEntry, type SourceExcerpt, type Subforum, type ThreadDetail, type ThreadSummary, type User, type WorkspaceEntry, type WorkspaceFile,
-  type WorkspaceView, type ServiceAccessStatus,
+  type ServiceAccessStatus,
 } from "../lib/api.ts";
 import { useQuery } from "../lib/query.ts";
 
@@ -34,7 +34,6 @@ export const keys = {
   messages: (id: number, conversationId: number) => `p${id}/messages/${conversationId}`,
   sandbox: (id: number) => `p${id}/sandbox`,
   workspace: (id: number) => `p${id}/ws`,
-  views: (id: number) => `p${id}/ws/views`,
   tree: (id: number) => `p${id}/ws/tree`,
   file: (id: number, path: string) => `p${id}/ws/file/${path}`,
   usage: (id: number) => `p${id}/ws/usage`,
@@ -86,9 +85,6 @@ export const useMessages = (id: number, conversationId: number | null) =>
 /** `watch`: keep asking (the Workspace page is open, or the Scribe is working). Otherwise it is read once. */
 export const useSandbox = (id: number, enabled: boolean, watch = false) =>
   useQuery(enabled ? keys.sandbox(id) : null, () => api<SandboxStatus>(`/projects/${id}/sandbox`), { every: watch ? 12_000 : null });
-
-export const useViews = (id: number, enabled: boolean, every: number | null = null) =>
-  useQuery(enabled ? keys.views(id) : null, () => api<{ views: WorkspaceView[] }>(`/projects/${id}/workspace/views`).then((result) => result.views), { every });
 
 export const useTree = (id: number, enabled: boolean, every: number | null = null) =>
   useQuery(enabled ? keys.tree(id) : null, () => api<{ entries: WorkspaceEntry[] }>(`/projects/${id}/workspace/tree`).then((result) => result.entries), { every });

@@ -66,8 +66,6 @@ const MESSAGES: Record<string, string> = {
   sandbox_not_created: "The project sandbox has not been started yet.",
   sandbox_preview_unavailable: "The sandbox preview is not answering yet.",
   sandbox_image_outdated: "The sandbox image is out of date. Run npm run sandbox:build, then try again.",
-  invalid_artifact_path: "Only HTML files under artifacts/ can be previewed.",
-  scribe_timeout: "The Scribe ran out of time (15 minutes) and stopped.",
   scribe_returned_no_text: "The Scribe finished without writing a reply.",
   tool_call_limit_reached: "The Scribe reached its tool-call limit for one reply.",
   model_step_limit_reached: "The Scribe reached its step limit for one reply.",

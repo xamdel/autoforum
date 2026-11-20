@@ -47,9 +47,6 @@
 .nav-dot.running { background: #7fd18b; }
 .nav-dot.stopped { background: #d9a441; }
 .nav-dot.busy { animation: soft-pulse 1.2s ease-in-out infinite; }
-.nav-dot.dark { margin: 0 0.35rem 0 0; background: var(--stone-dark); }
-.nav-dot.dark.running { background: #3f9a52; }
-.nav-dot.dark.stopped { background: #c98f2b; }
 
 /* "Agents": a light runs under the word while anyone is working; the pane hangs from it. */
 .agents-nav { position: relative; display: inline-flex; }

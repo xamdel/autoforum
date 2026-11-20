@@ -24,10 +24,10 @@ import type { ServiceAccess } from "./service-access/services.ts";
 import { createPreviewFeature, previewFrameSource } from "./workspace/preview.ts";
 import { createProjectRoutes } from "./projects.ts";
 import {
-  applicationIsAvailable,
   createSandboxLifecycleRoutes,
   getProjectPreviewTarget,
   synchronizeProjectSidecar,
+  workspaceShellIsAvailable,
   type ProjectSandboxIdentity,
   type SandboxServiceAccess,
 } from "./sandbox/lifecycle.ts";
@@ -54,9 +54,9 @@ export function createApp(dependencies: AppDependencies) {
   const app = new Hono();
   const preview = dependencies.database ? createPreviewFeature(
     dependencies.database,
-    async (project, kind) => {
-      const target = await getProjectPreviewTarget(project, kind, dependencies.serviceAccessSidecar?.(project));
-      if (kind === "application" && !await applicationIsAvailable(target)) throw new Error("sandbox_preview_unavailable");
+    async (project) => {
+      const target = await getProjectPreviewTarget(project);
+      if (!await workspaceShellIsAvailable(target)) throw new Error("sandbox_preview_unavailable");
       return target;
     },
   ) : undefined;

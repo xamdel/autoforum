@@ -135,7 +135,7 @@ export function Header({ page, context }: { page: string; context: DockContext }
         <a href={link(projectId, "forum")} className={forum ? "active" : ""} title="Threads and search">Forum</a>
         <a href={link(projectId, "library")} className={page === "library" ? "active" : ""} title="Sources and their excerpts">Library</a>
         {isOwner ? (
-          <a href={link(projectId, "workspace")} className={page === "workspace" ? "active" : ""} title="The project's sandbox: artifacts, files, and the live application">
+          <a href={link(projectId, "workspace")} className={page === "workspace" ? "active" : ""} title="The project's sandbox: workspace pages, files, and reusable modules">
             Workspace<SandboxDot scribeBusy={scribeBusy} />
           </a>
         ) : null}

@@ -6,6 +6,7 @@ import type { SystemLog } from "../logging/system.ts";
 import { formatAddress, parseAddress, reserveProjectAddresses } from "./addresses.ts";
 import { collectWorkspaceFiles, listWorkspaceDirectory, type WorkspaceEntry } from "../sandbox/filesystem.ts";
 import type { ProjectSandboxIdentity } from "../sandbox/lifecycle.ts";
+import { captureWorkspaceRevision } from "../sandbox/revisions.ts";
 
 export const RESULT_OUTBOX = ".autoforum/results";
 const MAX_RESULTS_PER_SCAN = 50;
@@ -80,6 +81,7 @@ export async function storeResultEnvelope(
   projectId: number,
   submissionId: string,
   envelope: z.infer<typeof resultEnvelopeSchema>,
+  workspaceRevision: string,
 ): Promise<string | null> {
   const client = await database.pool.connect();
   try {
@@ -95,9 +97,9 @@ export async function storeResultEnvelope(
     const target = await resolveTarget(client, projectId, envelope.target);
     const localId = await reserveProjectAddresses(client, projectId, 1);
     await client.query(
-      `insert into result (project_id, local_id, submission_id, thread_id, proposal_id, outputs)
-       values ($1, $2, $3, $4, $5, $6)`,
-      [projectId, localId, submissionId, target.threadId, target.proposalId, envelope.outputs],
+      `insert into result (project_id, local_id, submission_id, thread_id, proposal_id, outputs, workspace_revision)
+       values ($1, $2, $3, $4, $5, $6, $7)`,
+      [projectId, localId, submissionId, target.threadId, target.proposalId, envelope.outputs, workspaceRevision],
     );
     await client.query("commit");
     return formatAddress("result", localId);
@@ -156,15 +158,60 @@ export async function importProjectResults(
   );
   const byPath = new Map(readable.map((candidate) => [candidate.entry.path, candidate.submissionId]));
   const imported: ResultImportReport["imported"] = [];
+  const prepared: Array<{
+    path: string;
+    submissionId: string;
+    envelope: z.infer<typeof resultEnvelopeSchema>;
+  }> = [];
   for (const file of collection.files) {
     const submissionId = byPath.get(file.path)!;
     try {
       const decoded = new TextDecoder("utf-8", { fatal: true }).decode(file.bytes);
       const envelope = parseResultEnvelope(JSON.parse(decoded));
-      const address = await storeResultEnvelope(database, project.projectId, submissionId, envelope);
-      if (address) imported.push({ submissionId, address });
+      prepared.push({ path: file.path, submissionId, envelope });
     } catch (error) {
       rejected.push({ path: file.path, error: errorMessage(error) });
+    }
+  }
+  if (!prepared.length) return { imported, rejected };
+
+  const targetChecked: typeof prepared = [];
+  const targetClient = await database.pool.connect();
+  try {
+    for (const item of prepared) {
+      try {
+        await resolveTarget(targetClient, project.projectId, item.envelope.target);
+        targetChecked.push(item);
+      } catch (error) {
+        rejected.push({ path: item.path, error: errorMessage(error) });
+      }
+    }
+  } finally {
+    targetClient.release();
+  }
+  if (!targetChecked.length) return { imported, rejected };
+
+  let workspaceRevision: string;
+  try {
+    workspaceRevision = (await captureWorkspaceRevision(project)).revision;
+  } catch (error) {
+    const message = `workspace_revision_failed:${errorMessage(error)}`;
+    rejected.push(...targetChecked.map((item) => ({ path: item.path, error: message })));
+    return { imported, rejected };
+  }
+
+  for (const item of targetChecked) {
+    try {
+      const address = await storeResultEnvelope(
+        database,
+        project.projectId,
+        item.submissionId,
+        item.envelope,
+        workspaceRevision,
+      );
+      if (address) imported.push({ submissionId: item.submissionId, address });
+    } catch (error) {
+      rejected.push({ path: item.path, error: errorMessage(error) });
     }
   }
   return { imported, rejected };
@@ -178,10 +225,12 @@ export async function listThreadResults(database: AppDatabase, projectId: number
     outputs: Record<string, unknown>;
     proposalLocalId: number | null;
     expectedOutputs: Record<string, unknown> | null;
+    workspaceRevision: string | null;
     createdAt: Date;
   }>(
     `select r.row_id as id, r.local_id as "localId", r.submission_id as "submissionId", r.outputs,
-            d.local_id as "proposalLocalId", d.expected_outputs as "expectedOutputs", r.created_at as "createdAt"
+            d.local_id as "proposalLocalId", d.expected_outputs as "expectedOutputs",
+            r.workspace_revision as "workspaceRevision", r.created_at as "createdAt"
        from result r left join discourse_object d on d.row_id = r.proposal_id
       where r.project_id = $1 and r.thread_id = $2
       order by r.local_id`,

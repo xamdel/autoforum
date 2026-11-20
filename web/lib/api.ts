@@ -378,7 +378,6 @@ export interface ModelCatalogEntry {
 export interface SandboxStatus {
   state: "absent" | "stopped" | "running";
   imageAvailable: boolean;
-  applicationAvailable: boolean;
   createdAt?: string;
 }
 
@@ -387,13 +386,6 @@ export interface WorkspaceEntry {
   name: string;
   kind: "regular" | "directory" | "symlink" | "special";
   size: number | null;
-}
-
-export interface WorkspaceView {
-  path: string;
-  name: string;
-  size: number | null;
-  kind: "markdown" | "html";
 }
 
 export interface WorkspaceFile {

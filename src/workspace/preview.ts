@@ -1,6 +1,5 @@
 import { randomBytes } from "node:crypto";
 import http, { type IncomingHttpHeaders, type OutgoingHttpHeaders } from "node:http";
-import path from "node:path";
 
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { Hono, type Context, type MiddlewareHandler } from "hono";
@@ -11,7 +10,6 @@ import type { AppDatabase } from "../db.ts";
 import {
   getProjectPreviewTarget,
   PREVIEW_RELAY_HEADER,
-  type ProjectPreviewKind,
   type ProjectSandboxIdentity,
 } from "../sandbox/lifecycle.ts";
 
@@ -30,8 +28,6 @@ interface Launch {
   origin: string;
   forumOrigin: string;
   target: PreviewTarget;
-  kind: ProjectPreviewKind;
-  initialPath: string;
   expiresAt: number;
 }
 
@@ -45,7 +41,7 @@ export interface PreviewTarget {
   relayToken: string;
 }
 
-export type PreviewTargetResolver = (project: ProjectSandboxIdentity, kind: ProjectPreviewKind) => Promise<PreviewTarget>;
+export type PreviewTargetResolver = (project: ProjectSandboxIdentity) => Promise<PreviewTarget>;
 
 function secretKey(secret: string): string {
   return hashSecret(secret).toString("hex");
@@ -225,16 +221,7 @@ function positiveId(value: string): number | null {
   return Number.isSafeInteger(id) && id > 0 ? id : null;
 }
 
-function artifactInitialPath(value: unknown): string | null {
-  if (typeof value !== "string" || value.includes("\\") || value.includes("\0") || path.posix.isAbsolute(value)) return null;
-  const normalized = path.posix.normalize(value);
-  if (normalized !== value || !normalized.startsWith("artifacts/") || !/\.html?$/i.test(normalized)) return null;
-  const relative = normalized.slice("artifacts/".length);
-  if (!relative) return null;
-  return `/${relative.split("/").map(encodeURIComponent).join("/")}`;
-}
-
-/** One in-process launch/session map and one opaque proxy for sandbox applications. */
+/** One in-process launch/session map and one opaque proxy for the sandbox workspace shell. */
 export function createPreviewFeature(
   database: AppDatabase,
   resolveTarget: PreviewTargetResolver = getProjectPreviewTarget,
@@ -258,13 +245,8 @@ export function createPreviewFeature(
     if (!projectId) return context.json({ error: "project_not_found" }, 404);
     const project = await authorizedProject(database, actor.id, projectId);
     if (!project) return context.json({ error: "project_not_found" }, 404);
-    const input = await context.req.json().catch(() => null) as { artifact?: unknown } | null;
-    const requestedArtifact = input?.artifact;
-    const initialPath = requestedArtifact === undefined ? "/" : artifactInitialPath(requestedArtifact);
-    if (!initialPath) return context.json({ error: "invalid_artifact_path" }, 400);
-    const kind: ProjectPreviewKind = requestedArtifact === undefined ? "application" : "artifact";
     let target: PreviewTarget;
-    try { target = await resolveTarget(project, kind); }
+    try { target = await resolveTarget(project); }
     catch (error) {
       const message = error instanceof Error ? error.message : "sandbox_preview_unavailable";
       return context.json({ error: message }, 409);
@@ -279,8 +261,6 @@ export function createPreviewFeature(
       ...viewer,
       forumOrigin: forumOrigin(context),
       target,
-      kind,
-      initialPath,
       expiresAt: Date.now() + LAUNCH_LIFETIME_MS,
     });
     return context.json({ url: `${viewer.origin}/.autoforum/launch?code=${encodeURIComponent(code)}` });
@@ -318,7 +298,7 @@ export function createPreviewFeature(
         maxAge: Math.floor(SESSION_LIFETIME_MS / 1_000),
       });
       applyPolicy(context, launch.forumOrigin);
-      return context.redirect(launch.initialPath, 302);
+      return context.redirect("/", 302);
     }
     if (path.startsWith("/.autoforum/")) {
       return responseWithPolicy(404, "Not found.", process.env.APP_ORIGIN ?? "'none'");
@@ -338,10 +318,6 @@ export function createPreviewFeature(
       return responseWithPolicy(401, "Preview access is no longer available.", session.forumOrigin);
     }
     if (context.req.header("upgrade")) return responseWithPolicy(426, "WebSockets are not supported.", session.forumOrigin);
-    if (session.kind === "artifact" && !["GET", "HEAD"].includes(context.req.method)) {
-      const headers = new Headers({ allow: "GET, HEAD" });
-      return responseWithPolicy(405, "Artifact previews are read-only.", session.forumOrigin, headers);
-    }
     if (!["GET", "HEAD", "OPTIONS"].includes(context.req.method) && context.req.header("origin") !== session.origin) {
       return responseWithPolicy(403, "Preview origin refused.", session.forumOrigin);
     }

@@ -16,16 +16,12 @@ const ROLE_LABEL = "org.autoforum.role";
 export const SANDBOX_IMAGE = process.env.AUTOFORUM_SANDBOX_IMAGE ?? "autoforum-sandbox:v1";
 export const SANDBOX_PREVIEW_HOST = "0.0.0.0";
 export const SANDBOX_PREVIEW_PORT = 8080;
-export const SANDBOX_ARTIFACT_PORT = 8082;
 export const SANDBOX_SERVICE_GATEWAY_PORT = 8083;
 export const SANDBOX_SERVICE_BROKER_PORT = 8084;
 export const PREVIEW_RELAY_HEADER = "x-autoforum-preview-relay";
 const APPLICATION_RELAY_PORT = "8081/tcp";
-const ARTIFACT_RELAY_PORT = "8082/tcp";
 const SERVICE_GATEWAY_PORT = "8083/tcp";
 const SERVICE_BROKER_PORT = "8084/tcp";
-
-export type ProjectPreviewKind = "application" | "artifact";
 
 export interface ProjectPreviewTarget {
   host: string;
@@ -125,13 +121,12 @@ async function findRoleContainer(engine: Docker, project: ProjectSandboxIdentity
   return found[0] ? engine.getContainer(found[0].Id) : null;
 }
 
-function runsArtifactServer(inspection: Docker.ContainerInspectInfo): boolean {
-  return (inspection.Config.Cmd ?? []).some((part) => part.includes("autoforum-artifact-server.mjs"));
+function runsWorkspaceShell(inspection: Docker.ContainerInspectInfo): boolean {
+  return (inspection.Config.Cmd ?? []).some((part) => part.includes("autoforum-workspace-shell/server.mjs"));
 }
 
-function previewTarget(inspection: Docker.ContainerInspectInfo, kind: ProjectPreviewKind): ProjectPreviewTarget | null {
-  const relayPort = kind === "artifact" ? ARTIFACT_RELAY_PORT : APPLICATION_RELAY_PORT;
-  const binding = inspection.NetworkSettings.Ports?.[relayPort]?.[0];
+function previewTarget(inspection: Docker.ContainerInspectInfo): ProjectPreviewTarget | null {
+  const binding = inspection.NetworkSettings.Ports?.[APPLICATION_RELAY_PORT]?.[0];
   const port = Number(binding?.HostPort);
   const relayToken = configuredEnvironment(inspection, "AUTOFORUM_PREVIEW_RELAY_TOKEN");
   if (!binding || !Number.isSafeInteger(port) || port < 1 || !relayToken) return null;
@@ -168,8 +163,8 @@ async function connectServiceBroker(
   serviceAccess.connectBroker(target);
 }
 
-/** A valid HTTP response means project code, rather than merely the always-running relay, is answering. */
-export function applicationIsAvailable(target: ProjectPreviewTarget, timeoutMs = 750): Promise<boolean> {
+/** A valid HTTP response means the image-owned workspace shell is ready to receive a viewer. */
+export function workspaceShellIsAvailable(target: ProjectPreviewTarget, timeoutMs = 750): Promise<boolean> {
   return new Promise((resolve) => {
     let settled = false;
     const finish = (available: boolean) => {
@@ -225,19 +220,16 @@ async function ensureProjectResources(
 
   let sidecar = await findRoleContainer(engine, project, "network");
   let applicationHostPort = "";
-  let artifactHostPort = "";
   let brokerHostPort = "";
   let previewRelayToken = randomBytes(32).toString("base64url");
   if (sidecar) {
     const inspection = await sidecar.inspect();
     applicationHostPort = inspection.NetworkSettings.Ports?.[APPLICATION_RELAY_PORT]?.[0]?.HostPort ?? "";
-    artifactHostPort = inspection.NetworkSettings.Ports?.[ARTIFACT_RELAY_PORT]?.[0]?.HostPort ?? "";
     brokerHostPort = inspection.NetworkSettings.Ports?.[SERVICE_BROKER_PORT]?.[0]?.HostPort ?? "";
     const existingPreviewRelayToken = configuredEnvironment(inspection, "AUTOFORUM_PREVIEW_RELAY_TOKEN");
     if (existingPreviewRelayToken) previewRelayToken = existingPreviewRelayToken;
     if (inspection.Image !== image.Id
       || !inspection.HostConfig.PortBindings?.[APPLICATION_RELAY_PORT]
-      || !inspection.HostConfig.PortBindings?.[ARTIFACT_RELAY_PORT]
       || !inspection.HostConfig.PortBindings?.[SERVICE_BROKER_PORT]
       || !existingPreviewRelayToken
       || configuredEnvironment(inspection, "AUTOFORUM_SERVICE_BROKER_TOKEN") !== serviceBrokerToken
@@ -254,14 +246,12 @@ async function ensureProjectResources(
       Env: [
         `AUTOFORUM_PREVIEW_HOST=${resource.sandbox}`,
         `AUTOFORUM_PREVIEW_PORT=${SANDBOX_PREVIEW_PORT}`,
-        `AUTOFORUM_ARTIFACT_PORT=${SANDBOX_ARTIFACT_PORT}`,
         `AUTOFORUM_PREVIEW_RELAY_TOKEN=${previewRelayToken}`,
         `AUTOFORUM_SERVICE_BROKER_TOKEN=${serviceBrokerToken}`,
         `AUTOFORUM_SERVICE_ROUTES=${serviceRoutes}`,
       ],
       ExposedPorts: {
         [APPLICATION_RELAY_PORT]: {},
-        [ARTIFACT_RELAY_PORT]: {},
         [SERVICE_GATEWAY_PORT]: {},
         [SERVICE_BROKER_PORT]: {},
       },
@@ -270,7 +260,6 @@ async function ensureProjectResources(
         NetworkMode: resource.internalNetwork,
         PortBindings: {
           [APPLICATION_RELAY_PORT]: [{ HostIp: "127.0.0.1", HostPort: applicationHostPort }],
-          [ARTIFACT_RELAY_PORT]: [{ HostIp: "127.0.0.1", HostPort: artifactHostPort }],
           [SERVICE_BROKER_PORT]: [{ HostIp: "127.0.0.1", HostPort: brokerHostPort }],
         },
         CapDrop: ["ALL"],
@@ -287,7 +276,7 @@ async function ensureProjectResources(
   let sandbox = await findRoleContainer(engine, project, "sandbox");
   if (sandbox) {
     const inspection = await sandbox.inspect();
-    if (inspection.Image !== image.Id || !runsArtifactServer(inspection)) {
+    if (inspection.Image !== image.Id || !runsWorkspaceShell(inspection)) {
       await sandbox.remove({ force: true, v: false });
       sandbox = null;
     }
@@ -381,33 +370,18 @@ export async function getRunningProjectContainer(project: ProjectSandboxIdentity
 
 export async function getProjectPreviewTarget(
   project: ProjectSandboxIdentity,
-  kind: ProjectPreviewKind = "application",
-  serviceAccess?: SandboxServiceAccess,
 ): Promise<ProjectPreviewTarget> {
   const engine = createContainerEngine();
-  let [sandbox, sidecar] = await Promise.all([
+  const [sandbox, sidecar] = await Promise.all([
     findRoleContainer(engine, project, "sandbox"),
     findRoleContainer(engine, project, "network"),
   ]);
   if (!sandbox || !sidecar) throw new Error("sandbox_not_created");
-  let [sandboxInspection, sidecarInspection] = await Promise.all([sandbox.inspect(), sidecar.inspect()]);
-
-  if (kind === "artifact") {
-    const wasRunning = sandboxInspection.State.Running && sidecarInspection.State.Running;
-    const resources = await ensureProjectResources(engine, project, serviceAccess);
-    sandbox = resources.sandbox;
-    sidecar = resources.sidecar;
-    if (wasRunning) {
-      await startIfStopped(sidecar);
-      await connectServiceBroker(project, sidecar, serviceAccess);
-      await startIfStopped(sandbox);
-    }
-    [sandboxInspection, sidecarInspection] = await Promise.all([sandbox.inspect(), sidecar.inspect()]);
-  }
+  const [sandboxInspection, sidecarInspection] = await Promise.all([sandbox.inspect(), sidecar.inspect()]);
 
   if (!sandboxInspection.State.Running || !sidecarInspection.State.Running) throw new Error("sandbox_not_running");
-  if (kind === "artifact" && !runsArtifactServer(sandboxInspection)) throw new Error("sandbox_image_outdated");
-  const target = previewTarget(sidecarInspection, kind);
+  if (!runsWorkspaceShell(sandboxInspection)) throw new Error("sandbox_image_outdated");
+  const target = previewTarget(sidecarInspection);
   if (!target) throw new Error("sandbox_preview_unavailable");
   return target;
 }
@@ -417,23 +391,13 @@ export async function projectSandboxStatus(project: ProjectSandboxIdentity, engi
   const sandbox = await findRoleContainer(engine, project, "sandbox");
   let imageAvailable = true;
   try { await engine.getImage(SANDBOX_IMAGE).inspect(); } catch (error) { if (notFound(error)) imageAvailable = false; else throw error; }
-  if (!sandbox) return { state: "absent" as const, imageAvailable, applicationAvailable: false };
+  if (!sandbox) return { state: "absent" as const, imageAvailable };
   const inspection = await sandbox.inspect();
   const running = inspection.State.Running;
-  let applicationAvailable = false;
-  if (running) {
-    const sidecar = await findRoleContainer(engine, project, "network");
-    if (sidecar) {
-      const sidecarInspection = await sidecar.inspect();
-      const target = sidecarInspection.State.Running ? previewTarget(sidecarInspection, "application") : null;
-      if (target) applicationAvailable = await applicationIsAvailable(target);
-    }
-  }
   return {
     state: running ? "running" as const : "stopped" as const,
     imageAvailable,
     createdAt: inspection.Created,
-    applicationAvailable,
   };
 }
 

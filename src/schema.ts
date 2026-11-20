@@ -270,6 +270,7 @@ export const results = pgTable("result", {
   threadId: id("thread_id").notNull().references(() => threads.rowId, { onDelete: "cascade" }),
   proposalId: id("proposal_id").references(() => discourseObjects.rowId),
   outputs: jsonb("outputs").$type<Record<string, unknown>>().notNull(),
+  workspaceRevision: text("workspace_revision"),
   createdAt: time("created_at").notNull().defaultNow(),
 }, (table) => [
   uniqueIndex("result_project_local_unique").on(table.projectId, table.localId),

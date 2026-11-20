@@ -1,12 +1,11 @@
 // The dock: one column on the right of every page. It holds the Scribe's chat and, beside a thread, whatever was
-// opened from it (an artifact, a proposal, a result). When both are open they are two tabs of the same column, so
+// opened from it (a proposal or a result). When both are open they are two tabs of the same column, so
 // opening one never throws the other away. The page reflows beside the dock; nothing floats over what you are reading.
 
-import { currentRoute, navigate, path } from "../lib/router.ts";
+import { currentRoute } from "../lib/router.ts";
 import { createStore, remembered } from "../lib/store.ts";
 
 export type DockView =
-  | { kind: "artifact"; path: string }
   | { kind: "proposal"; address: string; threadId: number }
   | { kind: "result"; address: string; threadId: number };
 
@@ -23,9 +22,6 @@ interface DockState {
 
 const SCRIBE_KEY = "autoforum.dock.scribe";
 const WIDTH_KEY = "autoforum.dock.width";
-/** Below this window width a dock would squeeze the page, so things open full-size instead. */
-export const DOCK_MIN_WINDOW = 1_080;
-
 export const dock = createStore<DockState>({
   view: null,
   tab: "scribe",
@@ -67,17 +63,6 @@ export const sameView = (a: DockView | null, b: DockView | null) => JSON.stringi
 /** Opens something from a thread beside it. Opening what is already in front closes it. */
 export function openDockView(view: DockView): void {
   dock.set((state) => (sameView(state.view, view) && state.tab === "view" ? { ...state, view: null, tab: "scribe" } : { ...state, view, tab: "view" }));
-}
-
-/** An artifact opens beside the page when the window has room, and on the Workspace page when it does not. */
-export function openArtifact(projectId: number, artifactPath: string): void {
-  if (window.innerWidth < DOCK_MIN_WINDOW || dockContext() === "workspace") openInWorkspace(projectId, artifactPath);
-  else openDockView({ kind: "artifact", path: artifactPath });
-}
-
-/** The full view: the Workspace page with this file open. */
-export function openInWorkspace(projectId: number, filePath: string): void {
-  navigate(`${path(projectId, "workspace")}?file=${encodeURIComponent(filePath)}`);
 }
 
 export function setDockWidth(width: number | null): void {

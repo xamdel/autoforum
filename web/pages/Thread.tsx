@@ -11,7 +11,7 @@ import { plural } from "../lib/format.ts";
 import { invalidate, peekQuery } from "../lib/query.ts";
 import { link, navigate, path, useRoute } from "../lib/router.ts";
 import { stopTurn } from "../chrome/AgentsNav.tsx";
-import { artifactPathsIn, Markdown, plainLine } from "../components/Markdown.tsx";
+import { Markdown, plainLine } from "../components/Markdown.tsx";
 import { ObjectCard } from "../components/Records.tsx";
 import type { Suggestion } from "../components/SmartTextarea.tsx";
 import {
@@ -208,8 +208,7 @@ export function ThreadPage({ threadId }: { threadId: number }) {
       ...detail.excerpts.map((excerpt) => ({ label: plainLine(excerpt.content, 70), detail: excerpt.address, insert: `[[${excerpt.address}]]`, kind: "excerpt" })),
       ...[...detail.posts].reverse().map((post) => ({ label: `@${post.author}: ${plainLine(post.body, 60)}`, detail: post.address, insert: `[[${post.address}]]`, kind: "post" })),
     ];
-    const artifacts = [...new Set([...detail.posts.map((post) => post.body), ...detail.objects.map((object) => object.body ?? "")].flatMap(artifactPathsIn))];
-    return { objectsByPost, excerptsByPost, resultsByProposal, addresses, nearby, artifacts };
+    return { objectsByPost, excerptsByPost, resultsByProposal, addresses, nearby };
   }, [detail]);
 
   // This thread's turns: those in progress, by the post that asked for them.
@@ -326,7 +325,7 @@ export function ThreadPage({ threadId }: { threadId: number }) {
         })}
         <Composer threadId={threadId} nearby={derived.nearby} input={input} />
       </div>
-      <Margin detail={detail} turns={threadTurns} artifacts={derived.artifacts} resultsByProposal={derived.resultsByProposal} onFocus={focus} />
+      <Margin detail={detail} turns={threadTurns} resultsByProposal={derived.resultsByProposal} onFocus={focus} />
     </div>
   );
 }

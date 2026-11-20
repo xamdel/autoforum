@@ -31,6 +31,16 @@ export interface WorkspaceFile {
   bytes: Buffer;
 }
 
+const catalogEntrySchema = z.object({
+  name: z.string().min(1).max(255),
+  description: z.string().min(1).max(240).nullable(),
+}).strict();
+
+export interface WorkspaceCatalog {
+  pages: Array<z.infer<typeof catalogEntrySchema>>;
+  modules: Array<z.infer<typeof catalogEntrySchema>>;
+}
+
 export function normalizeWorkspacePath(value: string, allowRoot = false): string {
   if (typeof value !== "string" || value.includes("\\") || value.includes("\0")) throw new Error("invalid_path");
   if (allowRoot && value === "") return "";
@@ -154,4 +164,12 @@ export async function workspaceUsage(project: ProjectSandboxIdentity) {
   return z.object({ files: z.number().int().nonnegative(), bytes: z.number().int().nonnegative() }).strict().parse(
     await invoke(project, { operation: "usage" }),
   );
+}
+
+/** Reads the bounded, project-authored catalog injected into owner Scribe context. */
+export async function readWorkspaceCatalog(project: ProjectSandboxIdentity): Promise<WorkspaceCatalog> {
+  return z.object({
+    pages: z.array(catalogEntrySchema).max(100),
+    modules: z.array(catalogEntrySchema).max(100),
+  }).strict().parse(await invoke(project, { operation: "catalog" }));
 }

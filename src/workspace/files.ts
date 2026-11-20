@@ -52,20 +52,6 @@ export function createWorkspaceRoutes(database: AppDatabase) {
     }
   });
 
-  routes.get("/projects/:projectId/workspace/views", async (context) => {
-    const project = await authorizedProject(context, database);
-    if (typeof project === "string") return authorizationResponse(context, project);
-    try {
-      const entries = await listWorkspaceTree(project, "artifacts");
-      const views = entries
-        .filter((entry) => entry.kind === "regular" && /\.(?:md|markdown|html?)$/i.test(entry.path))
-        .map((entry) => ({ ...entry, kind: /\.html?$/i.test(entry.path) ? "html" : "markdown" }));
-      return context.json({ views });
-    } catch (error) {
-      return workspaceFailure(context, error);
-    }
-  });
-
   routes.get("/projects/:projectId/workspace/file", async (context) => {
     const project = await authorizedProject(context, database);
     if (typeof project === "string") return authorizationResponse(context, project);

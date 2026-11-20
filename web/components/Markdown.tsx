@@ -2,24 +2,19 @@
 // keep only http(s) and mailto destinations, and images are shown as links rather than fetched. The sole generated-
 // HTML island is trust-disabled KaTeX MathML from web/lib/math.ts.
 //
-// Four things are recognized beyond Markdown: TeX math, [[address]] references (chips with a preview on hover), @handles of
-// project members, and artifacts/… paths (which open the artifact, for the owner).
+// Three things are recognized beyond Markdown: TeX math, [[address]] references, and @handles of project members.
 
 import { Marked, type Token, type Tokens } from "marked";
 import { memo, useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { mathExtensions, renderMathMarkup } from "../lib/math.ts";
 import { addressLink } from "../lib/router.ts";
-import { openArtifact } from "../state/dock.ts";
 import { useProject } from "../state/project.tsx";
-import { icons } from "./ui.tsx";
 
 export const ADDRESS_PATTERN = "(?:thread|post|source|excerpt|result|question|claim|evidence|proposal|rel):[1-9]\\d*(?:#[a-z][a-z0-9_-]{0,63})?";
 const LOCAL_PATTERN = "new:[a-z][a-z0-9_-]{0,31}";
-export const ARTIFACT_PATTERN = "artifacts/[\\w.+-]+(?:/[\\w.+-]+)*\\.(?:md|markdown|html?)";
 const referenceAtStart = new RegExp(`^\\[\\[(${ADDRESS_PATTERN}|${LOCAL_PATTERN})\\]\\]`);
-const wholeArtifact = new RegExp(`^${ARTIFACT_PATTERN}$`, "i");
-const inText = new RegExp(`(?<![\\w@/.-])@([a-z][a-z0-9_-]{1,31})\\b|(?<![\\w/.-])(${ARTIFACT_PATTERN})\\b`, "gi");
+const inText = new RegExp("(?<![\\w@/.-])@([a-z][a-z0-9_-]{1,31})\\b", "gi");
 
 const parser = new Marked({
   gfm: true,
@@ -95,7 +90,6 @@ function MathExpression({ source, display }: { source: string; display: boolean 
 interface Context {
   projectId: number;
   kinds: ReadonlyMap<string, "human" | "agent">;
-  artifacts: boolean;
 }
 
 export function Reference({ address, projectId }: { address: string; projectId: number }) {
@@ -104,28 +98,17 @@ export function Reference({ address, projectId }: { address: string; projectId: 
   return <a className={`ref ref-${kind}`} href={addressLink(projectId, address)} data-ref={address}>{address}</a>;
 }
 
-export function ArtifactChip({ path, projectId }: { path: string; projectId: number }) {
-  return (
-    <button type="button" className="artifact-chip" title="Open this artifact beside the page" onClick={() => openArtifact(projectId, path)}>
-      {icons.artifact}
-      {path.replace(/^artifacts\//, "")}
-    </button>
-  );
-}
-
-/** Plain text with the mentions and artifact paths in it. */
+/** Plain text with project-member mentions highlighted. */
 function prose(text: string, context: Context, key: string): ReactNode[] {
   const decoded = decodeEntities(text);
   const out: ReactNode[] = [];
   let last = 0;
   for (const match of decoded.matchAll(inText)) {
-    const [whole, handle, artifact] = match;
+    const [whole, handle] = match;
     let node: ReactNode = null;
     if (handle) {
       const kind = context.kinds.get(handle.toLowerCase());
       if (kind) node = <span key={`${key}m${match.index}`} className={`mention ${kind}`}>{whole}</span>;
-    } else if (artifact && context.artifacts) {
-      node = <ArtifactChip key={`${key}a${match.index}`} path={artifact} projectId={context.projectId} />;
     }
     if (!node) continue;
     if (match.index > last) out.push(decoded.slice(last, match.index));
@@ -167,9 +150,7 @@ function inline(tokens: Token[] | undefined, context: Context, prefix: string): 
         break;
       case "codespan": {
         const text = (token as Tokens.Codespan).text;
-        out.push(context.artifacts && wholeArtifact.test(text)
-          ? <ArtifactChip key={key} path={text} projectId={context.projectId} />
-          : <code key={key}>{text}</code>);
+        out.push(<code key={key}>{text}</code>);
         break;
       }
       case "br":
@@ -292,10 +273,10 @@ function blocks(tokens: Token[], context: Context, prefix: string): ReactNode[] 
 const hasCheckbox = (token: Token): boolean => token.type === "checkbox" || Boolean((token as Tokens.Generic).tokens?.some(hasCheckbox));
 
 export const Markdown = memo(function Markdown({ text, className = "md" }: { text: string; className?: string }) {
-  const { projectId, kinds, isOwner } = useProject();
+  const { projectId, kinds } = useProject();
   const rendered = useMemo(
-    () => blocks(tokensFor(text), { projectId, kinds, artifacts: isOwner }, ""),
-    [text, projectId, kinds, isOwner],
+    () => blocks(tokensFor(text), { projectId, kinds }, ""),
+    [text, projectId, kinds],
   );
   return <div className={className}>{rendered}</div>;
 });
@@ -312,9 +293,4 @@ export function plainLine(text: string | null | undefined, limit = 160): string 
     .replace(/\s+/g, " ")
     .trim();
   return plain.length > limit ? `${plain.slice(0, limit - 1).trimEnd()}…` : plain;
-}
-
-/** The artifact paths a piece of text mentions. */
-export function artifactPathsIn(text: string): string[] {
-  return [...new Set([...text.matchAll(new RegExp(`(?<![\\w/.-])${ARTIFACT_PATTERN}\\b`, "gi"))].map((match) => match[0]))];
 }

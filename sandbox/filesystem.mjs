@@ -7,6 +7,8 @@ const ROOT = "/workspace";
 const MAX_REQUEST_BYTES = 1024 * 1024;
 const MAX_LIST_ENTRIES = 2_000;
 const HIDDEN_TREE_DIRECTORIES = new Set([".git", "node_modules", ".venv", "venv", "__pycache__"]);
+const MAX_CATALOG_ENTRIES = 100;
+const MAX_DESCRIPTION_LENGTH = 240;
 
 function logicalPath(value, allowRoot = false) {
   if (typeof value !== "string" || value.includes("\\") || value.includes("\0")) throw new Error("invalid_path");
@@ -181,13 +183,85 @@ async function usage() {
   return { files, bytes };
 }
 
+function firstDescription(markdown) {
+  for (const source of markdown.split(/\r?\n/)) {
+    const line = source.trim();
+    if (!line || line.startsWith("#") || line.startsWith("<!--")) continue;
+    return line.length <= MAX_DESCRIPTION_LENGTH ? line : `${line.slice(0, MAX_DESCRIPTION_LENGTH - 1)}…`;
+  }
+  return null;
+}
+
+async function catalogCategory(name) {
+  const root = path.join(ROOT, name);
+  let directory;
+  try {
+    const stat = await lstat(root);
+    if (!stat.isDirectory() || stat.isSymbolicLink()) throw new Error("invalid_catalog_directory");
+    directory = await opendir(root);
+  } catch (error) {
+    if (error && typeof error === "object" && error.code === "ENOENT") return [];
+    throw error;
+  }
+  const entries = [];
+  for await (const entry of directory) {
+    if (!entry.isDirectory() || entry.isSymbolicLink()) continue;
+    if (entries.length >= MAX_CATALOG_ENTRIES) throw new Error("workspace_catalog_too_large");
+    let description = null;
+    try {
+      const readme = path.join(root, entry.name, "README.md");
+      const stat = await lstat(readme);
+      if (stat.isFile() && !stat.isSymbolicLink() && stat.size <= 16 * 1024) {
+        description = firstDescription((await readFile(readme)).toString("utf8"));
+      }
+    } catch (error) {
+      if (!(error && typeof error === "object" && error.code === "ENOENT")) throw error;
+    }
+    entries.push({ name: entry.name, description });
+  }
+  entries.sort((left, right) => left.name.localeCompare(right.name));
+  return entries;
+}
+
+async function workspaceCatalog() {
+  const modules = await catalogCategory("modules");
+  const pages = [];
+  try {
+    const pagesRoot = path.join(ROOT, "pages");
+    const directory = await opendir(pagesRoot);
+    for await (const entry of directory) {
+      if (!entry.isDirectory() || entry.isSymbolicLink()) continue;
+      if (pages.length >= MAX_CATALOG_ENTRIES) throw new Error("workspace_catalog_too_large");
+      let description = null;
+      try {
+        const descriptor = path.join(pagesRoot, entry.name, "page.json");
+        const file = await lstat(descriptor);
+        if (file.isFile() && !file.isSymbolicLink() && file.size <= 16 * 1024) {
+          const metadata = JSON.parse((await readFile(descriptor)).toString("utf8"));
+          const text = typeof metadata.description === "string" && metadata.description.trim()
+            ? metadata.description.trim()
+            : typeof metadata.title === "string" ? metadata.title.trim() : "";
+          description = text ? (text.length <= MAX_DESCRIPTION_LENGTH ? text : `${text.slice(0, MAX_DESCRIPTION_LENGTH - 1)}…`) : null;
+        }
+      } catch (error) {
+        if (!(error && typeof error === "object" && error.code === "ENOENT")) throw error;
+      }
+      pages.push({ name: entry.name, description });
+    }
+  } catch (error) {
+    if (!(error && typeof error === "object" && error.code === "ENOENT")) throw error;
+  }
+  pages.sort((left, right) => left.name.localeCompare(right.name));
+  return { pages, modules };
+}
+
 async function main() {
   const encoded = process.argv[2];
   if (!encoded || encoded.length > MAX_REQUEST_BYTES) throw new Error("request_too_large");
   const decoded = Buffer.from(encoded, "base64url");
   if (decoded.length > MAX_REQUEST_BYTES) throw new Error("request_too_large");
   const request = JSON.parse(decoded.toString("utf8"));
-  const operations = { list, tree, read, write, collect, usage };
+  const operations = { list, tree, read, write, collect, usage, catalog: workspaceCatalog };
   const operation = operations[request.operation];
   if (!operation) throw new Error("unknown_operation");
   return await operation(request);

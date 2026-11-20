@@ -17,8 +17,6 @@ ALLOWED_PORTS = {80, 443}
 PREVIEW_HOST = os.environ.get("AUTOFORUM_PREVIEW_HOST")
 PREVIEW_PORT = int(os.environ.get("AUTOFORUM_PREVIEW_PORT", "8080"))
 PREVIEW_RELAY_PORT = 8081
-ARTIFACT_PORT = int(os.environ.get("AUTOFORUM_ARTIFACT_PORT", "8082"))
-ARTIFACT_RELAY_PORT = 8082
 GATEWAY_RELAY_PORT = 8083
 BROKER_PORT = 8084
 TLS_CONTEXT = ssl.create_default_context()
@@ -173,22 +171,6 @@ async def handle_preview(client_reader, client_writer):
         client_writer.close()
 
 
-async def handle_artifact(client_reader, client_writer):
-    try:
-        header = await authenticated_preview_header(client_reader)
-        if not PREVIEW_HOST:
-            raise ConnectionError("artifact target is not configured")
-        upstream_reader, upstream_writer = await asyncio.open_connection(PREVIEW_HOST, ARTIFACT_PORT)
-        upstream_writer.write(header)
-        await upstream_writer.drain()
-        await asyncio.gather(relay(client_reader, upstream_writer), relay(upstream_reader, client_writer))
-    except PermissionError:
-        await reject_preview(client_writer)
-        client_writer.close()
-    except Exception:
-        client_writer.close()
-
-
 async def handle_broker(client_reader, client_writer):
     try:
         token = await asyncio.wait_for(client_reader.readline(), timeout=10)
@@ -271,12 +253,11 @@ async def handle_gateway(client_reader, client_writer):
 async def main():
     proxy = await asyncio.start_server(handle_proxy, "0.0.0.0", 3128)
     preview = await asyncio.start_server(handle_preview, "0.0.0.0", PREVIEW_RELAY_PORT)
-    artifacts = await asyncio.start_server(handle_artifact, "0.0.0.0", ARTIFACT_RELAY_PORT)
     gateway = await asyncio.start_server(handle_gateway, "0.0.0.0", GATEWAY_RELAY_PORT)
     broker = await asyncio.start_server(handle_broker, "0.0.0.0", BROKER_PORT)
-    print("Autoforum network sidecar listening on public egress 3128, application relay 8081, artifact relay 8082, service gateway 8083, and host broker 8084", flush=True)
-    async with proxy, preview, artifacts, gateway, broker:
-        await asyncio.gather(proxy.serve_forever(), preview.serve_forever(), artifacts.serve_forever(), gateway.serve_forever(), broker.serve_forever())
+    print("Autoforum network sidecar listening on public egress 3128, workspace relay 8081, service gateway 8083, and host broker 8084", flush=True)
+    async with proxy, preview, gateway, broker:
+        await asyncio.gather(proxy.serve_forever(), preview.serve_forever(), gateway.serve_forever(), broker.serve_forever())
 
 
 asyncio.run(main())

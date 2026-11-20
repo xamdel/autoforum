@@ -1,17 +1,36 @@
-/* The Workspace page (pages/Workspace.tsx): a bar, a rail of artifacts and files, and a stage. */
+/* The Workspace page (pages/Workspace.tsx): one slim status bar over the shell canvas, with source on demand. What the
+   canvas shows is drawn by the workspace shell from the same design system (sandbox/workspace-shell/). */
 
 .ws { height: 100%; display: flex; flex-direction: column; min-height: 0; background: var(--marble); }
 .ws-closed { padding: 2rem; }
 
-/* The one bar: where you are on the left, the sandbox's state and controls on the right. */
-.ws-bar { position: relative; z-index: 7; display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.9rem; flex: none; min-height: 2.6rem; padding: 0.3rem 0.6rem 0.3rem 0.9rem; background: var(--marble-2); border-bottom: 1px solid var(--stone); }
-.ws-where { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 1rem; }
-.ws-title { font-family: var(--display); font-variant: small-caps; letter-spacing: 0.08em; font-weight: 700; font-size: 1rem; }
-.ws-state { display: inline-flex; align-items: center; color: var(--muted); white-space: nowrap; }
-.ws-state.running { color: var(--verdigris); }
-.ws-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; margin-left: auto; }
+/* The one bar, as tall as the dock's head beside it so the two read as one band. On the left, Files (over the edge
+   its drawer opens from) and the sandbox: a dot, its state in words, and the switch that starts or stops it. On the
+   right, what the sandbox may reach and the rest. The header already says this is the Workspace, so the bar does not. */
+.ws-bar { position: relative; z-index: 7; display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.9rem; flex: none; min-height: 2.6rem; padding: 0.3rem 0.5rem 0.3rem 0.4rem; background: var(--marble-2); border-bottom: 1px solid var(--stone); }
+.ws-where { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 0.9rem; }
+.ws-state { display: inline-flex; align-items: center; gap: 0.5rem; color: var(--ink-soft); white-space: nowrap; }
+/* Green when the sandbox is on, red when it is stopped, grey when there is none or its state is not known. */
+.ws-state-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--stone-dark); }
+.ws-state-dot.running { background: #3f9a52; }
+.ws-state-dot.stopped { background: #c0453a; }
+.ws-state-dot.busy { animation: soft-pulse 1.2s ease-in-out infinite; }
+/* The label is as wide as the wider of its two resting states (unseen copies of them sit under it, taking no
+   height), so the switch stays under the pointer when it is thrown. */
+.ws-state-label { display: inline-grid; }
+.ws-state-sizer { height: 0; overflow: hidden; visibility: hidden; }
+/* While the Scribe works in the sandbox, a light runs along the bar's foot, as it does under "Agents" in the header. */
+.ws-activity { position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; overflow: hidden; background: rgba(176, 138, 62, 0.3); pointer-events: none; }
+.ws-activity::before { content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: 30%; background: linear-gradient(90deg, transparent, var(--gold) 35%, #d9b45f 50%, var(--gold) 65%, transparent); animation: ws-run 1.8s cubic-bezier(0.45, 0, 0.55, 1) infinite; will-change: transform; }
+@keyframes ws-run { from { transform: translateX(-110%); } to { transform: translateX(345%); } }
+@media (prefers-reduced-motion: reduce) { .ws-activity { background: var(--gold); } .ws-activity::before { display: none; } }
+.ws-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 0.15rem; margin-left: auto; }
 .ws-tools svg { width: 14px; height: 14px; }
-.ws-usage { margin-right: 0.4rem; font-variant-numeric: tabular-nums; }
+.ws-tool { display: inline-flex; align-items: center; gap: 0.3rem; color: var(--ink-soft); background: none; border-color: transparent; }
+.ws-tool:hover:not(:disabled), .ws-tool.on { color: var(--ink); background: var(--marble); border-color: var(--stone); }
+.ws-tool:disabled:hover { background: none; border-color: transparent; }
+.ws-tool.on { border-color: var(--stone-dark); }
+.ws-more { min-width: 2.1rem; padding-inline: 0.5rem; font-weight: 700; letter-spacing: 0.12em; }
 .service-access-popover { width: 27rem; max-width: calc(100vw - 1rem); max-height: min(75vh, 42rem); overflow-y: auto; }
 .service-access-trigger { display: inline-flex; align-items: center; gap: 0.28rem; }
 .service-access-bolt { width: 1.18rem; height: 1.18rem; display: inline-grid; place-items: center; color: var(--muted); border-radius: var(--round); }
@@ -47,20 +66,21 @@
 .service-access-form-actions { justify-content: flex-end; }
 .service-access-actions { display: flex; flex: none; gap: 0.65rem; }
 
-.ws-body { flex: 1; min-height: 0; display: flex; }
-.ws-rail { width: 15.5rem; flex: none; overflow: auto; padding: 0 0 2rem; border-right: 1px solid var(--stone); background: var(--marble-2); font-size: 0.84rem; }
-.rail-head { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; justify-content: space-between; padding: 0.55rem 0.5rem 0.25rem 0.8rem; background: var(--marble-2); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.14em; color: var(--muted); font-weight: 600; }
+.ws-body { position: relative; flex: 1; min-height: 0; display: flex; overflow: hidden; }
+.ws-drawer-scrim { position: absolute; z-index: 20; inset: 0; width: 100%; padding: 0; border: 0; border-radius: 0; background: rgba(43, 34, 25, 0.28); cursor: default; animation: fade 0.12s ease-out; }
+.ws-files-drawer { position: absolute; z-index: 21; inset: 0 auto 0 0; width: min(22rem, calc(100% - 3rem)); display: flex; flex-direction: column; overflow: hidden; background: var(--marble-2); border-right: 1px solid var(--stone-dark); box-shadow: 8px 0 24px rgba(43, 34, 25, 0.18); animation: workspace-drawer-in 0.16s ease-out; font-size: 0.84rem; }
+@keyframes workspace-drawer-in { from { transform: translateX(-1.25rem); opacity: 0; } }
+.ws-drawer-head { display: flex; align-items: center; justify-content: space-between; gap: 0.7rem; flex: none; min-height: 3.4rem; padding: 0.55rem 0.55rem 0.55rem 0.85rem; background: var(--marble); border-bottom: 1px solid var(--stone); }
+.ws-drawer-head > span:first-child { min-width: 0; display: flex; flex-direction: column; }
+.ws-drawer-head strong { font-family: var(--display); font-variant: small-caps; letter-spacing: 0.07em; font-size: 0.98rem; }
+.ws-drawer-head small { color: var(--muted); font-size: 0.7rem; }
+.ws-drawer-tree { flex: 1; min-height: 0; overflow: auto; padding: 0.45rem 0 1.5rem; }
 .rail-empty { margin: 0; padding: 0.2rem 0.8rem 0.4rem; }
 .tree-row { display: flex; align-items: center; gap: 0.15rem; width: 100%; padding: 0.12rem 0.5rem; border: 0; border-radius: 0; background: none; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: inherit; color: var(--ink); }
 .tree-row:hover:not(:disabled) { background: rgba(176, 138, 62, 0.12); }
 .tree-row.active { background: rgba(176, 138, 62, 0.26); }
 .tree-row.quiet { color: var(--muted); }
 .tree-row.dir { font-weight: 600; }
-.tree-row.artifact { padding-left: 0.6rem; }
-.tree-row.application { gap: 0.35rem; }
-.tree-row.application .application-icon { display: inline-flex; color: var(--verdigris); }
-.tree-row.application .application-icon svg { width: 13px; height: 13px; }
-.tree-row.application .nav-dot { margin-left: auto; }
 .tree-row.fresh { animation: tree-fresh 3.2s ease-out; }
 @keyframes tree-fresh { from { background: rgba(127, 209, 139, 0.6); } }
 .tree-caret { display: inline-flex; width: 0.9rem; color: var(--muted); transition: transform 0.1s; }
@@ -68,23 +88,16 @@
 .tree-caret svg { width: 12px; height: 12px; }
 
 .ws-stage { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; background: #fffdf8; }
-.gallery { flex: 1; min-height: 0; overflow: auto; padding: 1.1rem 1.2rem 3rem; }
-.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr)); gap: 0.9rem; }
-.card-tile { display: flex; flex-direction: column; align-items: stretch; gap: 0; padding: 0; overflow: hidden; text-align: left; background: var(--marble); border: 1px solid var(--stone); border-radius: var(--radius); box-shadow: var(--shadow); transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s; }
-.card-tile:hover { border-color: var(--gold); transform: translateY(-1px); box-shadow: 0 3px 12px rgba(70, 45, 20, 0.12); background: var(--marble); }
-.tile-cover { height: 6.5rem; display: flex; align-items: center; justify-content: center; background: linear-gradient(160deg, var(--marble-2), #efe6d3); border-bottom: 1px solid var(--stone); }
-.tile-cover .tile-kind { font-size: 1.9rem; opacity: 0.45; }
-.application-tile .tile-cover { color: var(--verdigris); }
-.application-tile .tile-kind svg { width: 2rem; height: 2rem; }
-.tile-text { display: flex; flex-direction: column; gap: 0.15rem; padding: 0.5rem 0.7rem 0.6rem; min-width: 0; }
-.tile-text b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); font-size: 0.84rem; font-weight: 600; }
-.gallery-empty { max-width: 32rem; margin: auto; padding: 2rem 1.4rem; text-align: center; }
-.gallery-empty h3 { margin: 0.6rem 0 0.3rem; font-size: 0.95rem; color: var(--ink); }
+.ws-startup { width: min(38rem, calc(100% - 2rem)); margin: auto; padding: clamp(2rem, 6vw, 4rem); text-align: center; }
+.ws-startup-mark { width: 3.2rem; height: 3.2rem; display: inline-grid; place-items: center; margin-bottom: 1rem; color: var(--pompeii-dark); background: var(--pompeii-soft); border: 1px solid #dfb7ae; border-radius: var(--round); }
+.ws-startup-mark svg { width: 1.5rem; height: 1.5rem; }
+.ws-startup h1 { margin: 0.35rem 0 0.8rem; font-size: clamp(1.7rem, 4vw, 2.5rem); }
+.ws-startup > p:not(.eyebrow) { max-width: 31rem; margin: 0 auto 1.25rem; line-height: 1.65; }
 
 .reset-list { max-height: 11rem; overflow: auto; font-size: 0.76rem; }
 .reset-form { margin-top: 1rem; padding-top: 0.8rem; border-top: 1px solid var(--stone); }
 
+/* The bar needs no rule of its own when narrow: its tools wrap under the state only once they no longer fit beside it. */
 @media (max-width: 760px) {
-  .ws-body { flex-direction: column; }
-  .ws-rail { width: auto; max-height: 34%; border-right: 0; border-bottom: 1px solid var(--stone); }
+  .ws-files-drawer { width: min(90%, 22rem); }
 }

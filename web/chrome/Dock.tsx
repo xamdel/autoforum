@@ -11,7 +11,7 @@ import { ScribeChat } from "./ScribeChat.tsx";
 
 const Inspector = lazy(() => import("./Inspector.tsx"));
 
-const viewLabel = (view: DockView) => (view.kind === "artifact" ? view.path.replace(/^artifacts\//, "") : view.address);
+const viewLabel = (view: DockView) => view.address;
 
 export function Dock({ context }: { context: DockContext }) {
   const state = dock.use();

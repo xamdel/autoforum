@@ -6,7 +6,7 @@ import { Hono } from "hono";
 
 import type { AppDatabase } from "../src/db.ts";
 import { createPreviewFeature, previewPolicyHeaders, stripPreviewCredentials } from "../src/workspace/preview.ts";
-import { applicationIsAvailable, PREVIEW_RELAY_HEADER } from "../src/sandbox/lifecycle.ts";
+import { PREVIEW_RELAY_HEADER, workspaceShellIsAvailable } from "../src/sandbox/lifecycle.ts";
 
 test("preview policy isolates embedded applications without disabling their own code", () => {
   const headers = previewPolicyHeaders("http://app.autoforum.localhost:5173");
@@ -21,7 +21,7 @@ test("preview policy isolates embedded applications without disabling their own 
   );
 });
 
-test("an application is advertised only while an HTTP server answers", async () => {
+test("the workspace shell is available only while its HTTP server answers", async () => {
   let receivedToken = "";
   const server = http.createServer((request, response) => {
     receivedToken = String(request.headers[PREVIEW_RELAY_HEADER] ?? "");
@@ -35,12 +35,12 @@ test("an application is advertised only while an HTTP server answers", async () 
   assert(address && typeof address !== "string");
   const target = { host: "127.0.0.1", port: address.port, relayToken: "probe-token" };
   try {
-    assert.equal(await applicationIsAvailable(target), true);
+    assert.equal(await workspaceShellIsAvailable(target), true);
     assert.equal(receivedToken, "probe-token");
   } finally {
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
   }
-  assert.equal(await applicationIsAvailable(target, 100), false);
+  assert.equal(await workspaceShellIsAvailable(target, 100), false);
 });
 
 test("preview launch and proxy keep forum authority out of the sandbox", async () => {
@@ -75,7 +75,7 @@ test("preview launch and proxy keep forum authority out of the sandbox", async (
   });
   const address = upstream.address();
   assert(address && typeof address !== "string");
-  const resolvedKinds: string[] = [];
+  let resolvedTargets = 0;
 
   const database = {
     pool: {
@@ -91,8 +91,8 @@ test("preview launch and proxy keep forum authority out of the sandbox", async (
       },
     },
   } as unknown as AppDatabase;
-  const feature = createPreviewFeature(database, async (_project, kind) => {
-    resolvedKinds.push(kind);
+  const feature = createPreviewFeature(database, async () => {
+    resolvedTargets += 1;
     return { host: "127.0.0.1", port: address.port, relayToken: "unit-relay-token" };
   });
   const app = new Hono();
@@ -113,6 +113,7 @@ test("preview launch and proxy keep forum authority out of the sandbox", async (
 
     const exchange = await app.request(launch.url, { redirect: "manual" });
     assert.equal(exchange.status, 302);
+    assert.equal(exchange.headers.get("location"), "/");
     const setCookie = exchange.headers.get("set-cookie") ?? "";
     const viewerCookie = /autoforum_preview_dev=([^;]+)/.exec(setCookie)?.[1];
     assert(viewerCookie);
@@ -165,47 +166,7 @@ test("preview launch and proxy keep forum authority out of the sandbox", async (
     const reused = await app.request(launch.url, { redirect: "manual" });
     assert.equal(reused.status, 401);
 
-    authorized = true;
-    const artifactLaunchResponse = await app.request("http://app.autoforum.localhost/api/projects/7/preview/launch", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        cookie: "autoforum_session=forum-secret",
-        origin: "http://app.autoforum.localhost:5173",
-      },
-      body: JSON.stringify({ artifact: "artifacts/nested/example page.html" }),
-    });
-    assert.equal(artifactLaunchResponse.status, 200);
-    const artifactLaunch = await artifactLaunchResponse.json() as { url: string };
-    const artifactExchange = await app.request(artifactLaunch.url, { redirect: "manual" });
-    assert.equal(artifactExchange.status, 302);
-    assert.equal(artifactExchange.headers.get("location"), "/nested/example%20page.html");
-    const artifactSecret = /autoforum_preview_dev=([^;]+)/.exec(artifactExchange.headers.get("set-cookie") ?? "")?.[1];
-    assert(artifactSecret);
-    const artifactViewer = new URL(artifactLaunch.url).origin;
-    const requestsBeforeWrite = upstreamRequests.length;
-    const rejectedWrite = await app.request(`${artifactViewer}/nested/example%20page.html`, {
-      method: "POST",
-      headers: {
-        cookie: `autoforum_preview_dev=${artifactSecret}`,
-        origin: artifactViewer,
-      },
-      body: "blocked",
-    });
-    assert.equal(rejectedWrite.status, 405);
-    assert.equal(upstreamRequests.length, requestsBeforeWrite);
-    assert.deepEqual(resolvedKinds, ["application", "artifact"]);
-
-    const invalidArtifact = await app.request("http://app.autoforum.localhost/api/projects/7/preview/launch", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        cookie: "autoforum_session=forum-secret",
-        origin: "http://app.autoforum.localhost:5173",
-      },
-      body: JSON.stringify({ artifact: "../host.html" }),
-    });
-    assert.equal(invalidArtifact.status, 400);
+    assert.equal(resolvedTargets, 1);
   } finally {
     await new Promise<void>((resolve, reject) => upstream.close((error) => error ? reject(error) : resolve()));
     if (previousAppOrigin === undefined) delete process.env.APP_ORIGIN;

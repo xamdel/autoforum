@@ -11,10 +11,18 @@ RUN usermod --login sandbox --home /home/sandbox --move-home node \
     && mkdir -p /workspace /cache /home/sandbox/.local \
     && chown -R sandbox:sandbox /workspace /cache /home/sandbox
 
+WORKDIR /opt/autoforum-workspace-shell
+COPY workspace-shell/package.json workspace-shell/package-lock.json ./
+RUN npm ci --omit=dev
+COPY workspace-shell/server.mjs workspace-shell/shell-entry.jsx workspace-shell/shell.css workspace-shell/design-system.css ./
+COPY workspace-shell/test ./test
+RUN npm test
+
 COPY --chmod=0555 filesystem.mjs /usr/local/bin/autoforum-filesystem.mjs
+COPY --chmod=0555 workspace-revision.mjs /usr/local/bin/autoforum-workspace-revision.mjs
 COPY --chmod=0555 network-sidecar.py /usr/local/bin/autoforum-network-sidecar
-COPY --chmod=0555 artifact-server.mjs /usr/local/bin/autoforum-artifact-server.mjs
 COPY --chmod=0444 service-access.md /usr/local/share/autoforum/service-access.md
+COPY --chmod=0444 workspace-README.md pages-README.md modules-README.md workspace-gitignore /usr/local/share/autoforum/
 
 ENV HOME=/home/sandbox \
     NPM_CONFIG_PREFIX=/home/sandbox/.local \
@@ -26,6 +34,6 @@ ENV HOME=/home/sandbox \
 
 USER sandbox
 WORKDIR /workspace
-EXPOSE 8080 8081 8082 8083 8084
+EXPOSE 8080 8081 8083 8084
 
-CMD ["sh", "-lc", "if [ ! -d .git ]; then git init -b main && git config user.name 'Autoforum Scribe' && git config user.email 'scribe@autoforum.invalid' && mkdir -p artifacts && printf '.autoforum/\\n' > .gitignore && printf '# Project workspace\\n\\nThe Scribe can build Markdown and HTML views here.\\n' > artifacts/README.md && git add . && git commit -m 'Initialize project workspace'; fi; exec node /usr/local/bin/autoforum-artifact-server.mjs"]
+CMD ["sh", "-lc", "mkdir -p pages modules outputs; if [ ! -d .git ]; then git init -b main && git config user.name 'Autoforum Scribe' && git config user.email 'scribe@autoforum.invalid' && install -m 0644 /usr/local/share/autoforum/workspace-README.md README.md && install -m 0644 /usr/local/share/autoforum/pages-README.md pages/README.md && install -m 0644 /usr/local/share/autoforum/modules-README.md modules/README.md && install -m 0644 /usr/local/share/autoforum/workspace-gitignore .gitignore && git add . && git commit -m 'Initialize project workspace'; fi; exec node /opt/autoforum-workspace-shell/server.mjs"]

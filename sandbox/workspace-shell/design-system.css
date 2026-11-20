@@ -1,0 +1,279 @@
+/* Autoforum's design system — "Roman Forum": travertine and marble, Pompeian red, gilding, Tyrian purple for agents.
+   Fonts are the reader's own serifs; nothing is fetched from elsewhere. This file holds the palette, type, controls,
+   and the small pieces every page shares.
+
+   One file, two readers. The Autoforum app loads it first (web/styles/base.css imports it), and the workspace shell
+   puts it ahead of every project page inside a sandbox (shell.css imports it). It lives under sandbox/ because the
+   sandbox image can only copy files from there. A change here changes both, so a workspace page and the forum beside
+   it cannot drift apart.
+
+   IF YOU ARE BUILDING A WORKSPACE PAGE (the Scribe, or anyone writing pages/<slug>/page.tsx): this stylesheet is
+   already on your page; do not import it, copy it into the workspace, or redefine its tokens. A workspace page is
+   part of Autoforum and must look like it, so build with what is here before writing any CSS of your own:
+
+   - Plain elements are already dressed: h1-h4, p, a, code, kbd, pre, mark, input, select, textarea, button.
+     Write semantic HTML and leave it alone.
+   - Reach for a class below before inventing one. Each section says what its classes are for:
+       layout      .page (the page's column; sandbox only, in shell.css beside this file) .head-row .head-tools
+                   .meta-row .lede .crumbs .eyebrow .row .card .card.warn
+       controls    button (.primary .danger .link .small .on) .icon-button .toggle-switch .form .inline-form
+       labels      .badge (-open -busy -good -bad -quiet) .tag .chip .chips .count-badge
+       data        table.data (.num for numbers) .table-scroll .md (rendered Markdown or other prose)
+       states      .empty (.error .loading-note) .dots .muted .bad .small .hint
+   - What this file does not cover, write as page CSS beside the page, drawing on the tokens: var(--marble),
+     var(--stone), var(--ink), var(--radius), var(--shadow) and the rest. Never a hard-coded colour, a second font
+     family, a dark theme, a pill or rounded card, or a framework's default look. Page CSS loads after this file,
+     so a page can refine it; it should not replace it.
+   - Colour carries meaning; see the palette's notes. Use a colour for what it means, not for variety.
+
+   Inside a sandbox this file is /opt/autoforum-workspace-shell/design-system.css. */
+
+:root {
+  /* Surfaces, from the ground up: travertine is the page, marble is anything that sits on it (cards, bars,
+     popovers), marble-2 is a second step (a bar over marble, a card's lower edge). Stone draws every edge. */
+  --travertine: #ece3d2;
+  --marble: #fbf8f1;
+  --marble-2: #f6f0e4;
+  --stone: #d8ccb6;
+  --stone-dark: #b9a98b;
+  /* Text: ink for reading, ink-soft for secondary prose, muted for captions, labels, and anything that may recede. */
+  --ink: #2b2219;
+  --ink-soft: #4a3d30;
+  --muted: #756450;
+  /* Each accent has one meaning, with a soft tint to stand behind it.
+     pompeii   the primary action, links, a claim
+     gold      focus, selection, what is switched on, and work in progress on the page's chrome
+     lapis     open, a question
+     ochre     busy or waiting, a proposal, a result, a caution
+     verdigris good, done, running, evidence, the Scribe
+     tyrian    an agent
+     bad       an error, something destructive */
+  --pompeii: #a3352a;
+  --pompeii-dark: #7e261d;
+  --pompeii-soft: #f4e1dc;
+  --gold: #b08a3e;
+  --gold-soft: #efe2c2;
+  --lapis: #2f5674;
+  --lapis-soft: #e2eaf0;
+  --ochre: #8c5d13;
+  --ochre-soft: #f5e8cf;
+  --verdigris: #2f6b5c;
+  --verdigris-soft: #deeee8;
+  --tyrian: #5f2b5d;
+  --tyrian-soft: #f1e5ee;
+  --bad: #8f2d22;
+  --basalt: #3a2119;
+
+  /* Type: display for headings and labels (small caps, letter-spaced), serif for everything read, mono for code,
+     paths, and addresses. */
+  --display: "Cinzel", "Trajan Pro", "Palatino Linotype", "Book Antiqua", Palatino, Georgia, serif;
+  --serif: "Iowan Old Style", "Sitka Text", Charter, "Bitstream Charter", Cambria, Georgia, serif;
+  --mono: ui-monospace, "Cascadia Mono", "SF Mono", Consolas, monospace;
+  --shadow: 0 1px 2px rgba(70, 45, 20, 0.08), 0 2px 8px rgba(70, 45, 20, 0.05);
+  --shadow-raised: 0 10px 28px rgba(40, 20, 10, 0.24);
+  /* Corners: every box (button, field, card, chip, popover, message) has the same one. --round is only for what is
+     round by nature: avatars, dots, switches, counters. */
+  --radius: 2px;
+  --round: 999px;
+
+  color-scheme: light;
+  font-family: var(--serif);
+  font-size: 16px;
+  line-height: 1.55;
+  color: var(--ink);
+  background: var(--travertine);
+  font-synthesis: none;
+  -webkit-text-size-adjust: 100%;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+.visually-hidden { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0, 0, 0, 0) !important; white-space: nowrap !important; border: 0 !important; }
+body {
+  margin: 0;
+  background:
+    radial-gradient(ellipse 120% 60% at 50% 0%, rgba(255, 252, 244, 0.85), transparent 70%),
+    linear-gradient(180deg, #efe7d7, #e8dec9);
+}
+::selection { background: #e9d59a; }
+a { color: var(--pompeii-dark); text-decoration: none; }
+a:hover { text-decoration: underline; text-decoration-color: var(--gold); text-underline-offset: 3px; }
+:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; border-radius: var(--radius); }
+
+/* Headings: h1 names the page, h2 a section of it (ruled underneath), h3 and h4 are small captions over a group. */
+h1, h2, h3, h4 { font-family: var(--display); font-weight: 600; color: var(--ink); text-wrap: balance; }
+h1 { font-size: 1.75rem; margin: 0.15rem 0 0.5rem; font-variant: small-caps; letter-spacing: 0.03em; line-height: 1.22; }
+h2 { font-size: 1.2rem; margin: 2rem 0 0.7rem; font-variant: small-caps; letter-spacing: 0.04em; padding-bottom: 0.25rem; border-bottom: 1px solid var(--stone); }
+h3 { font-size: 0.82rem; margin: 1.4rem 0 0.5rem; text-transform: uppercase; letter-spacing: 0.14em; color: var(--muted); }
+h4 { font-size: 0.72rem; margin: 1.1rem 0 0.4rem; text-transform: uppercase; letter-spacing: 0.14em; color: var(--muted); }
+p { margin: 0.5rem 0; }
+code, kbd { font-family: var(--mono); font-size: 0.85em; background: #efe5d3; padding: 0.05em 0.3em; border-radius: var(--radius); }
+kbd { border: 1px solid var(--stone); border-bottom-width: 2px; background: var(--marble); }
+pre { font-family: var(--mono); font-size: 0.82rem; line-height: 1.5; background: #f1e8d7; border: 1px solid var(--stone); padding: 0.7rem 0.8rem; border-radius: var(--radius); overflow-x: auto; margin: 0.6rem 0; tab-size: 2; }
+pre code { background: none; padding: 0; font-size: inherit; }
+mark { background: #f2d98f; color: inherit; padding: 0 1px; border-radius: 1px; }
+.muted { color: var(--muted); }
+.small { font-size: 0.86rem; }
+.bad { color: var(--bad); }
+.nowrap { white-space: nowrap; }
+.push { margin-left: auto; }
+.error-text { color: var(--bad); }
+.hint { font-variant: normal; letter-spacing: 0; text-transform: none; font-weight: 400; color: var(--muted); font-size: 0.8rem; margin-left: 0.4rem; }
+/* A caption above a large heading: what kind of thing this is. */
+.eyebrow { margin: 0; color: var(--ochre); font-family: var(--display); font-size: 0.7rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; }
+
+/* ------------------------------------------------------------------ Controls */
+
+/* A plain <button> is the ordinary action. .primary is the one thing a view is for (at most one in sight), .danger
+   destroys something, .link is an action that reads as text, .small fits a toolbar, .on marks a toggle as pressed. */
+input, textarea, select, button, .button {
+  font: inherit; font-size: 0.94rem; color: var(--ink);
+  border: 1px solid var(--stone); border-radius: var(--radius); background: #fffdf8;
+}
+input, textarea, select { padding: 0.42rem 0.6rem; max-width: 100%; }
+input::placeholder, textarea::placeholder { color: #a3927a; }
+input:focus, textarea:focus, select:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 3px rgba(176, 138, 62, 0.18); }
+input[type="checkbox"], input[type="radio"] { width: 1rem; height: 1rem; padding: 0; accent-color: var(--pompeii); vertical-align: -0.15em; }
+/* A slider is drawn by the browser; it only takes the accent. */
+input[type="range"] { padding: 0; border: 0; background: none; accent-color: var(--pompeii); vertical-align: middle; }
+input[type="range"]:focus { box-shadow: none; }
+textarea { display: block; width: 100%; resize: vertical; line-height: 1.5; }
+button, .button { padding: 0.42rem 0.9rem; cursor: pointer; display: inline-flex; align-items: center; gap: 0.35rem; background: linear-gradient(180deg, #fffdf8, #f2ebdd); transition: border-color 0.12s, background-color 0.12s, color 0.12s; }
+button:hover, .button:hover { border-color: var(--stone-dark); text-decoration: none; background: linear-gradient(180deg, #fffdf8, #ebe2d0); }
+button:disabled { opacity: 0.5; cursor: default; }
+button.small, .button.small { padding: 0.16rem 0.55rem; font-size: 0.84rem; }
+button.on { background: var(--stone); border-color: var(--stone-dark); }
+.primary { background: linear-gradient(180deg, #b43c30, var(--pompeii-dark)); border-color: #6c2018; color: #fff6ea; letter-spacing: 0.02em; }
+.primary:hover { background: linear-gradient(180deg, #a3352a, #6c2018); border-color: #5a1a13; color: #fff; }
+.primary:disabled { background: linear-gradient(180deg, #b9867f, #9c6a63); border-color: #8b5c55; opacity: 0.75; }
+.danger { color: var(--bad); border-color: #e3c3bb; }
+.danger:hover { background: #f8e6e1; border-color: var(--bad); }
+button.link { border: 0; background: none; padding: 0; color: var(--pompeii-dark); font-size: inherit; }
+button.link:hover { text-decoration: underline; text-decoration-color: var(--gold); text-underline-offset: 3px; background: none; }
+button.link.danger-link { color: var(--muted); }
+button.link.danger-link:hover, button.link.danger-link.armed { color: var(--bad); }
+
+/* A button that is only an icon. Give it a title and an aria-label. */
+.icon-button { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 0.3rem; padding: 0.32rem; color: var(--muted); background: none; border: 1px solid transparent; }
+.icon-button:hover { color: var(--ink); background: var(--marble-2); border-color: var(--stone); }
+.icon-button.on { color: var(--gold); }
+.icon-button.tiny { padding: 0.1rem; }
+.icon-button.tiny svg { width: 14px; height: 14px; }
+.icon-button.armed { color: var(--bad); border-color: #e3c3bb; background: #fbf0ec; }
+.armed-note { font-size: 0.78rem; white-space: nowrap; }
+
+/* An on/off switch: it acts at once, where a checkbox in a form waits for Save.
+   <button type="button" role="switch" class="toggle-switch" aria-checked="true|false" aria-label="…"><span></span></button> */
+.toggle-switch { position: relative; flex: none; width: 2.25rem; height: 1.2rem; padding: 0; border: 1px solid var(--stone-dark); border-radius: var(--round); background: #d8cdbb; box-shadow: none; }
+.toggle-switch:hover:not(:disabled) { background: #cfc2ad; border-color: var(--stone-dark); }
+.toggle-switch > span { position: absolute; top: 2px; left: 2px; width: 0.82rem; height: 0.82rem; border-radius: 50%; background: white; box-shadow: 0 1px 2px rgba(45, 29, 14, 0.25); transition: left 0.12s; }
+.toggle-switch[aria-checked="true"], .toggle-switch[aria-checked="true"]:hover:not(:disabled) { border-color: var(--verdigris); background: var(--verdigris); }
+.toggle-switch[aria-checked="true"] > span { left: 1.18rem; }
+.toggle-switch:disabled { opacity: 0.48; cursor: not-allowed; }
+.switch-line { display: inline-flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; cursor: pointer; white-space: nowrap; }
+.switch-line.off { color: var(--muted); }
+
+/* A card: one thing set on the page (a form, a record, a group of settings). .warn is a caution to read first.
+   Inside .form, a <label> wrapping its control is a captioned field; .row lays fields or buttons side by side. */
+.card { background: linear-gradient(180deg, var(--marble), var(--marble-2)); border: 1px solid var(--stone); border-radius: var(--radius); padding: 1rem 1.1rem; margin: 0.9rem 0; box-shadow: var(--shadow); }
+.card.warn { background: var(--ochre-soft); border-color: #e6d2a8; }
+.form label { display: block; font-size: 0.82rem; color: var(--muted); margin-bottom: 0.7rem; font-variant: small-caps; letter-spacing: 0.06em; }
+.form label input:not([type="checkbox"]), .form label textarea, .form label select { display: block; width: 100%; margin-top: 0.25rem; color: var(--ink); font-variant: normal; letter-spacing: normal; }
+/* A select ignores line-height, so it is given the height a text field beside it has. */
+.form label select { min-height: calc(1.55em + 0.84rem + 2px); }
+.form label.check { display: flex; align-items: center; gap: 0.45rem; font-variant: normal; letter-spacing: 0; font-size: 0.9rem; color: var(--ink); }
+/* A field that holds more than one control (so it cannot be a <label>): the same caption over its contents. */
+.form .field { margin-bottom: 0.7rem; }
+.form .field-label { display: block; margin-bottom: 0.25rem; font-size: 0.82rem; color: var(--muted); font-variant: small-caps; letter-spacing: 0.06em; }
+.row { display: flex; gap: 0.8rem; align-items: center; flex-wrap: wrap; }
+.row.centered { justify-content: center; }
+.row label { flex: 0 0 auto; }
+.row label.grow { flex: 1 1 240px; }
+.inline-form { display: flex; gap: 0.4rem; margin-top: 0.6rem; max-width: 34rem; }
+.inline-form input { flex: 1; min-width: 0; }
+
+/* ------------------------------------------------------------------ Badges, tags, chips */
+
+/* A badge states a condition (open, running, done, failed) in its colour; a tag names a topic and has none. */
+.badge { display: inline-block; font-size: 0.72rem; line-height: 1.5; padding: 0 0.5rem; border-radius: var(--radius); background: #ebe2d1; color: var(--muted); font-variant: small-caps; letter-spacing: 0.06em; border: 1px solid rgba(0, 0, 0, 0.06); white-space: nowrap; }
+.badge-open { background: var(--lapis-soft); color: var(--lapis); }
+.badge-busy { background: var(--ochre-soft); color: var(--ochre); }
+.badge-good { background: var(--verdigris-soft); color: var(--verdigris); }
+.badge-bad { background: var(--pompeii-soft); color: var(--bad); }
+.badge-quiet { background: var(--gold-soft); color: #6f5520; }
+.tag { display: inline-flex; align-items: center; font-size: 0.76rem; line-height: 1.5; padding: 0 0.45rem; border-radius: var(--radius); background: #efe6d5; border: 1px solid #dfd2ba; color: #6b5a43; letter-spacing: 0.02em; }
+a.tag:hover { text-decoration: none; background: var(--gold-soft); border-color: var(--gold); color: #5b4518; }
+a.tag.on { background: var(--gold-soft); border-color: var(--gold); color: var(--ink); }
+.count-badge { display: inline-block; min-width: 1.05rem; padding: 0 0.3rem; border-radius: var(--round); background: var(--gold); color: #2a1710; font: 700 0.68rem/1.1rem var(--serif); text-align: center; letter-spacing: 0; }
+.count-badge.inline { margin-left: 0.3rem; vertical-align: 0.1em; }
+
+/* A chip: a choice you switch on or off (a tag to filter by, a tag to put on a thread). Several can be on at once. */
+.chips { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; }
+.chips-label { margin-right: 0.25rem; font-size: 0.82rem; color: var(--muted); font-variant: small-caps; letter-spacing: 0.06em; }
+.chip { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.14rem 0.6rem; font: inherit; font-size: 0.84rem; line-height: 1.5; color: var(--ink-soft); background: var(--marble); border: 1px solid var(--stone); border-radius: var(--radius); white-space: nowrap; cursor: pointer; transition: border-color 0.12s, background-color 0.12s, color 0.12s; }
+.chip:hover { color: var(--ink); background: var(--gold-soft); border-color: var(--gold); text-decoration: none; }
+.chip.on { color: var(--ink); background: var(--gold-soft); border-color: var(--gold); font-weight: 600; box-shadow: inset 0 -2px 0 var(--gold); }
+.chip.on:hover { background: #e9d8ae; }
+.chip.more { color: var(--muted); background: none; border-style: dashed; }
+.chip-count { font-size: 0.74rem; font-weight: 400; color: var(--muted); font-variant-numeric: tabular-nums; }
+.chip-x { margin-right: -0.15rem; font-size: 0.95em; font-weight: 400; line-height: 1; color: var(--muted); }
+.chip:hover .chip-x { color: var(--pompeii); }
+
+/* Something is happening: three dots that take the colour of the text around them.
+   <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span> */
+.timer { font-variant-numeric: tabular-nums; }
+.dots { display: inline-flex; gap: 3px; vertical-align: 0.1em; }
+.dots i { width: 5px; height: 5px; border-radius: 50%; background: currentColor; animation: blink 1.2s infinite ease-in-out; }
+.dots i:nth-child(2) { animation-delay: 0.2s; }
+.dots i:nth-child(3) { animation-delay: 0.4s; }
+@keyframes blink { 0%, 80%, 100% { opacity: 0.25; } 40% { opacity: 1; } }
+@keyframes soft-pulse { 50% { opacity: 0.45; } }
+
+/* ------------------------------------------------------------------ Empty, loading */
+
+/* Where content would be and is not: nothing yet (.empty), still coming (.loading-note), or failed (.error). */
+.empty { padding: 2.2rem; text-align: center; color: var(--muted); background: rgba(251, 248, 241, 0.6); border: 1px dashed var(--stone-dark); border-radius: var(--radius); font-style: italic; }
+.empty.error { color: var(--bad); font-style: normal; }
+.empty.loading-note { border-color: transparent; background: none; animation: soft-pulse 1.6s ease-in-out infinite; }
+.empty .primary, .empty p + button { font-style: normal; margin-top: 0.6rem; }
+
+/* ------------------------------------------------------------------ Prose and tables */
+
+/* .md is prose that was written, not laid out: rendered Markdown, a model's reply, a document. table.data is the
+   same ruled table for rows of results; put .num on a column of numbers, and wrap a wide one in .table-scroll. */
+.md { overflow-wrap: anywhere; }
+.md > :first-child { margin-top: 0.4rem; }
+.md > :last-child { margin-bottom: 0.2rem; }
+.md p { margin: 0.6rem 0; }
+.md h1, .md h2, .md h3, .md h4, .md h5, .md h6 { border: 0; padding: 0; margin: 1.1rem 0 0.4rem; font-variant: normal; text-transform: none; letter-spacing: 0.01em; color: var(--ink); }
+.md h1 { font-size: 1.25rem; }
+.md h2 { font-size: 1.12rem; }
+.md h3 { font-size: 1rem; }
+.md h4, .md h5, .md h6 { font-size: 0.92rem; }
+.md ul, .md ol { padding-left: 1.5rem; margin: 0.5rem 0; }
+.md li { margin: 0.15rem 0; }
+.md li.task { list-style: none; margin-left: -1.2rem; }
+.md blockquote { margin: 0.6rem 0; padding: 0.3rem 0.9rem; border-left: 3px solid var(--gold); color: var(--ink-soft); background: #f6eedf; }
+.md blockquote > :first-child { margin-top: 0.2rem; }
+.md hr { border: 0; border-top: 1px solid var(--stone); margin: 1rem 0; }
+.md-table, .table-scroll { overflow-x: auto; margin: 0.6rem 0; }
+.md table, table.data { border-collapse: collapse; font-size: 0.92rem; }
+.md th, .md td, table.data th, table.data td { border: 1px solid var(--stone); padding: 0.3rem 0.55rem; text-align: left; vertical-align: top; }
+.md th, table.data th { background: #f2eadb; font-weight: 700; }
+table.data { width: 100%; margin: 0.6rem 0; background: var(--marble); }
+table.data .num { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* ------------------------------------------------------------------ Page furniture */
+
+/* The top of a page: where it sits (.crumbs), its h1 with its actions beside it (.head-row, .head-tools), a line of
+   facts about it (.meta-row), and a sentence saying what it is for (.lede). */
+.crumbs { font-size: 0.85rem; color: var(--muted); margin-bottom: 0.3rem; font-variant: small-caps; letter-spacing: 0.05em; }
+.head-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; }
+.head-row h1 { min-width: 0; }
+.head-tools { display: flex; align-items: center; gap: 0.35rem; flex-shrink: 0; }
+.head-tools > button { white-space: nowrap; }
+.meta-row { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; color: var(--muted); font-size: 0.92rem; margin-bottom: 1.1rem; }
+.lede { max-width: 48rem; margin: 0.2rem 0 0.6rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+}

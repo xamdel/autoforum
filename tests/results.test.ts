@@ -37,10 +37,12 @@ test("storing an envelope resolves its target and allocates an immutable result 
   };
   const database = { pool: { async connect() { return client; } } } as unknown as AppDatabase;
   const envelope = resultEnvelopeSchema.parse({ target: "thread:7", outputs: { score: 0.91 } });
+  const revision = "a".repeat(40);
 
-  assert.equal(await storeResultEnvelope(database, 3, "trial_17", envelope), "result:44");
+  assert.equal(await storeResultEnvelope(database, 3, "trial_17", envelope, revision), "result:44");
   const inserted = queries.find((query) => query.sql.includes("insert into result"));
-  assert.deepEqual(inserted?.parameters, [3, 44, "trial_17", 31, null, { score: 0.91 }]);
+  assert.deepEqual(inserted?.parameters, [3, 44, "trial_17", 31, null, { score: 0.91 }, revision]);
+  assert.match(inserted?.sql ?? "", /workspace_revision/);
   assert.equal(queries.at(-1)?.sql, "commit");
 });
 

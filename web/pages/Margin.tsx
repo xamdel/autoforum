@@ -1,7 +1,7 @@
 // A thread's margin: a column beside the posts for what belongs to the thread as a whole. Proposals with their
-// results, results addressed to the thread itself, the workspace artifacts its posts mention, an outline of its
+// results, results addressed to the thread itself, an outline of its
 // questions, claims and evidence, the agents at work in it, your conversations with the Scribe about it, and what
-// refers to it. Proposals, results and artifacts open in the dock beside the page; the outline jumps within the thread.
+// refers to it. Proposals and results open in the dock beside the page; the outline jumps within the thread.
 
 import { useEffect, useRef, useState } from "react";
 
@@ -13,9 +13,9 @@ import { stopTurn } from "../chrome/AgentsNav.tsx";
 import { plainLine } from "../components/Markdown.tsx";
 import { ResultRow } from "../components/Records.tsx";
 import { AddressChip, Avatar, Badge, Dots, flashFailure, icons, KindIcon, Time, Timer } from "../components/ui.tsx";
-import { dock, openArtifact, openDockView, sameView, type DockView } from "../state/dock.ts";
+import { dock, openDockView, sameView, type DockView } from "../state/dock.ts";
 import { useProject } from "../state/project.tsx";
-import { keys, useBacklinks, useConversations, useSandbox } from "../state/queries.ts";
+import { keys, useBacklinks, useConversations } from "../state/queries.ts";
 import { askScribe, chat, selectChat } from "../state/scribe.ts";
 import { showScribe } from "../state/dock.ts";
 
@@ -222,17 +222,15 @@ function ReferencesNote({ address }: { address: string }) {
 
 const OUTLINE_KINDS = ["question", "claim", "evidence"];
 
-export function Margin({ detail, turns, artifacts, resultsByProposal, onFocus }: {
+export function Margin({ detail, turns, resultsByProposal, onFocus }: {
   detail: ThreadDetail;
   turns: AgentTurn[];
-  artifacts: string[];
   resultsByProposal: ReadonlyMap<string, ForumResult[]>;
   onFocus(address: string): void;
 }) {
-  const { projectId, isOwner } = useProject();
+  const { projectId } = useProject();
   const column = useStickyBothWays();
   const now = useDockView();
-  const sandbox = useSandbox(projectId, isOwner && artifacts.length > 0);
   const threadId = detail.thread.id;
   const proposals = detail.objects.filter((object) => object.kind === "proposal");
   const loose = detail.results.filter((result) => !result.proposalAddress);
@@ -247,21 +245,6 @@ export function Margin({ detail, turns, artifacts, resultsByProposal, onFocus }:
         <section className="mnote results-note">
           <div className="mn-kind"><KindIcon kind="result" /> results for this thread</div>
           {loose.map((result) => <ResultRow key={result.id} result={result} threadId={threadId} active={sameView(now, { kind: "result", address: result.address, threadId })} />)}
-        </section>
-      ) : null}
-
-      {isOwner && artifacts.length ? (
-        <section className="mnote artifacts-note">
-          <div className="mn-kind"><KindIcon kind="artifact" /> artifacts</div>
-          {artifacts.map((artifactPath) => (
-            <button type="button" key={artifactPath} className={`mn-row ${sameView(now, { kind: "artifact", path: artifactPath }) ? "on" : ""}`} title="Open beside the page" onClick={() => openArtifact(projectId, artifactPath)}>
-              <span className="tile-kind small">{/\.html?$/i.test(artifactPath) ? "</>" : "¶"}</span>
-              <span className="mn-row-text">
-                <b>{artifactPath.replace(/^artifacts\//, "")}</b>
-                <span className="muted small">{sandbox.data && sandbox.data.state !== "running" ? "sandbox stopped" : /\.html?$/i.test(artifactPath) ? "page" : "document"}</span>
-              </span>
-            </button>
-          ))}
         </section>
       ) : null}
 

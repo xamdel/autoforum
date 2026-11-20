@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { describeScribeToolActivity, reconcileScribeConversations } from "../src/chat.ts";
 import type { AppDatabase } from "../src/db.ts";
-import { renderScribeHistory, scribeSystemPrompt } from "../src/scribe.ts";
+import { renderScribeHistory, renderWorkspaceCatalog, scribeSystemPrompt } from "../src/scribe.ts";
 
 test("Scribe history preserves roles and the latest bounded conversation suffix", () => {
   const history = Array.from({ length: 45 }, (_, index) => ({
@@ -23,6 +23,19 @@ test("Scribe history truncates a single oversized message", () => {
   assert.ok(rendered.length < 21_000);
 });
 
+test("the injected workspace catalog contains bounded architectural entries rather than a file tree", () => {
+  const rendered = renderWorkspaceCatalog({
+    pages: [{ name: "workflow-lab", description: "Edits and runs project workflow graphs." }],
+    modules: [{ name: "geometry", description: null }],
+  });
+  assert.match(rendered, /workflow-lab .* Edits and runs project workflow graphs/);
+  assert.match(rendered, /geometry .* description missing/);
+  assert.match(rendered, /## Pages/);
+  assert.match(rendered, /## Reusable modules/);
+  assert.doesNotMatch(rendered, /node_modules/);
+  assert.match(renderWorkspaceCatalog(null), /Do not assume that the workspace is empty/);
+});
+
 test("the Scribe has sandbox tools without treating the sandbox as host access", () => {
   const prompt = scribeSystemPrompt();
   assert.match(prompt, /persistent \/workspace/);
@@ -32,6 +45,11 @@ test("the Scribe has sandbox tools without treating the sandbox as host access",
   assert.match(prompt, /Tools are optional/);
   assert.match(prompt, /only when new outside research is called for/);
   assert.match(prompt, /normal development environment/);
+  assert.match(prompt, /one persistent, evolving project/);
+  assert.match(prompt, /under pages\/.*under modules\//s);
+  assert.match(prompt, /Reuse is subordinate to experimental fidelity/);
+  assert.match(prompt, /Never change the mechanism, procedure, variables, controls/);
+  assert.match(prompt, /name it after its function/);
   assert.match(prompt, /how important variables or confounds are isolated/);
   assert.match(prompt, /explicit approval before implementing/);
   assert.match(prompt, /explicit approval to run it/);
@@ -44,10 +62,10 @@ test("the Scribe has sandbox tools without treating the sandbox as host access",
   assert.match(prompt, /sandbox_not_running/);
   assert.match(prompt, /no host access/);
   assert.match(prompt, /Git commit/);
-  assert.match(prompt, /HOST=0\.0\.0\.0 and PORT=8080/);
-  assert.match(prompt, /start or restart it as a background process/);
-  assert.match(prompt, /verify it over local HTTP/);
-  assert.match(prompt, /user should not need to supply the host or port/);
+  assert.match(prompt, /image-owned shell automatically discovers and rebuilds pages/);
+  assert.match(prompt, /never ask the user to visit a sandbox localhost address/);
+  assert.match(prompt, /pages\/<slug>\/server\.ts/);
+  assert.match(prompt, /\/api\/pages\/<slug>\/\*/);
   assert.match(prompt, /outputs itself must never be an array/);
   assert.match(prompt, /use its expected result output names as those keys/);
   assert.match(prompt, /generic file manifest or path\/hash\/size receipts/);
