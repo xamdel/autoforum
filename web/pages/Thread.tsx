@@ -52,7 +52,17 @@ const PostView = memo(function PostView({ post, kind, objects, excerpts, results
       <article className={`post ${kind === "agent" ? "by-agent" : ""} ${marked === post.address || excerptMarked ? "highlight" : ""}`} data-address={post.address}>
         <header>
           <Avatar handle={post.author} size="small" />
-          <Who handle={post.author} kind={kind} />
+          <span className="post-author">
+            <Who handle={post.author} kind={kind} />
+            {post.agentTurn ? (
+              <span
+                className="post-model"
+                title={`${post.agentTurn.provider}/${post.agentTurn.model} · ${post.agentTurn.thinkingLevel} effort`}
+              >
+                {post.agentTurn.provider}/{post.agentTurn.model} · {post.agentTurn.thinkingLevel} effort
+              </span>
+            ) : null}
+          </span>
           <span className="muted"><Time at={post.createdAt} /></span>
           {post.replyToAddress ? <a className="reply-to muted" href={`${link(projectId, "t", threadId)}?at=${encodeURIComponent(post.replyToAddress)}`} data-ref={post.replyToAddress}>{icons.reply} {post.replyToAddress}</a> : null}
           <span className="post-id"><AddressChip address={post.address} /></span>
@@ -76,7 +86,7 @@ const PostView = memo(function PostView({ post, kind, objects, excerpts, results
             <b>@{turn.agent}</b> {turn.status === "running" ? "is writing a reply" : "is queued to reply"}
             <div className="typing-meta">
               {turn.status === "running" ? <><Dots /> <Timer since={turn.startedAt ?? turn.createdAt} /> · </> : null}
-              {turn.provider}/{turn.model}
+              {turn.provider}/{turn.model} · {turn.thinkingLevel} effort
             </div>
           </div>
           <button type="button" className="small" disabled={Boolean(turn.stopRequestedAt)} onClick={() => stopTurn(projectId, turn.id)}>

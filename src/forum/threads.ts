@@ -195,8 +195,10 @@ export function createThreadRoutes(database: AppDatabase, enqueueTurns: EnqueueA
       database.pool.query(
         `select p.row_id as id, p.local_id as "localId", p.author_user_id as "authorId",
                 u.handle as author, p.reply_to_post_id as "replyToPostId", p.body, p.refs,
-                p.created_at as "createdAt"
+                p.created_at as "createdAt", a.provider as "agentProvider",
+                a.model as "agentModel", a.thinking_level as "agentThinkingLevel"
            from post p join forum_user u on u.row_id = p.author_user_id
+           left join agent_turn a on a.output_post_id = p.row_id and a.status = 'completed'
           where p.thread_id = $1 and p.project_id = $2
           order by p.local_id`,
         [threadId, projectId],
@@ -227,11 +229,17 @@ export function createThreadRoutes(database: AppDatabase, enqueueTurns: EnqueueA
     const postAddresses = new Map(postResult.rows.map((row) => [row.id, formatAddress("post", row.localId)]));
     return context.json({
       thread: { ...thread, address: formatAddress("thread", thread.localId) },
-      posts: postResult.rows.map((row) => ({
-        ...row,
-        address: formatAddress("post", row.localId),
-        replyToAddress: row.replyToPostId ? postAddresses.get(row.replyToPostId) ?? null : null,
-      })),
+      posts: postResult.rows.map((row) => {
+        const { agentProvider, agentModel, agentThinkingLevel, ...post } = row;
+        return {
+          ...post,
+          address: formatAddress("post", row.localId),
+          replyToAddress: row.replyToPostId ? postAddresses.get(row.replyToPostId) ?? null : null,
+          agentTurn: agentProvider && agentModel && agentThinkingLevel
+            ? { provider: agentProvider, model: agentModel, thinkingLevel: agentThinkingLevel }
+            : null,
+        };
+      }),
       objects: objectResult.rows.map((row) => ({ ...row, address: formatAddress(row.kind === "relation" ? "rel" : row.kind, row.localId) })),
       excerpts: excerptResult.rows.map((row) => ({
         ...row,

@@ -131,6 +131,11 @@ export interface Post {
   replyToAddress: string | null;
   body: string;
   refs: string[];
+  agentTurn: {
+    provider: string;
+    model: string;
+    thinkingLevel: ThinkingLevel;
+  } | null;
   createdAt: string;
 }
 
