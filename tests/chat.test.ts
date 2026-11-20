@@ -57,7 +57,8 @@ test("the Scribe has sandbox tools without treating the sandbox as host access",
   assert.match(prompt, /read_web/);
   assert.match(prompt, /search summaries are leads, not evidence/);
   assert.match(prompt, /logged and cached but does not add it to the project Library/);
-  assert.match(prompt, /use save_source with an accurate human-readable title/);
+  assert.match(prompt, /one identifiable work or document/);
+  assert.match(prompt, /never save a search page, results listing, or multi-record API response/);
   assert.match(prompt, /direct source citation may point readers to a work generally/);
   assert.match(prompt, /sandbox_not_running/);
   assert.match(prompt, /no host access/);
@@ -77,7 +78,7 @@ test("a member Scribe is a private research assistant without workspace authorit
   assert.match(prompt, /web_search/);
   assert.match(prompt, /A request to draft, rewrite, or summarize is a writing request/);
   assert.match(prompt, /Tools are optional/);
-  assert.match(prompt, /use save_source with an accurate human-readable title/);
+  assert.match(prompt, /one identifiable work or document/);
   assert.match(prompt, /or access the project workspace or sandbox/);
   assert.doesNotMatch(prompt, /run_workspace_command/);
   assert.doesNotMatch(prompt, /persistent \/workspace/);
@@ -100,8 +101,8 @@ test("live Scribe activity describes tool calls without exposing file contents o
     phase: "start",
     callId: "save-1",
     toolName: "save_source",
-    input: { url: "https://example.test/private-query", title: "Useful paper" },
-  }), "Saving a source as “Useful paper”…");
+    input: { url: "https://example.test/private-query" },
+  }), "Saving a source from “https://example.test/private-query”…");
 });
 
 test("startup releases Scribe conversations interrupted by the previous process", async () => {

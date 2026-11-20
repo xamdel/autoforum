@@ -8,6 +8,7 @@ import { api, type Source, type SourceText } from "../lib/api.ts";
 import { describeError } from "../lib/format.ts";
 import { invalidate } from "../lib/query.ts";
 import { addressLink, link, navigate, path } from "../lib/router.ts";
+import { sourceDetails } from "../lib/sources.ts";
 import { Markdown, plainLine } from "../components/Markdown.tsx";
 import { SmartTextarea } from "../components/SmartTextarea.tsx";
 import { AddressChip, copyText, Empty, Failure, flash, flashFailure, icons, KindIcon, Loading, Time } from "../components/ui.tsx";
@@ -112,6 +113,66 @@ function SourceTags({ source }: { source: Source }) {
   );
 }
 
+function SourceMetadataEditor({ source }: { source: Source }) {
+  const { projectId } = useProject();
+  const [editing, setEditing] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [title, setTitle] = useState(source.title);
+  const [authors, setAuthors] = useState(source.authors.join("\n"));
+  const [year, setYear] = useState(source.publishedYear ? String(source.publishedYear) : "");
+  const [container, setContainer] = useState(source.containerTitle ?? "");
+  const [publisher, setPublisher] = useState(source.publisher ?? "");
+  const [type, setType] = useState(source.sourceType ?? "");
+  const [identifier, setIdentifier] = useState(source.identifier ?? "");
+  useEffect(() => {
+    setTitle(source.title);
+    setAuthors(source.authors.join("\n"));
+    setYear(source.publishedYear ? String(source.publishedYear) : "");
+    setContainer(source.containerTitle ?? "");
+    setPublisher(source.publisher ?? "");
+    setType(source.sourceType ?? "");
+    setIdentifier(source.identifier ?? "");
+  }, [source]);
+  const save = (event: FormEvent) => {
+    event.preventDefault();
+    setBusy(true);
+    api(`/projects/${projectId}/sources/${source.id}`, {
+      method: "PATCH",
+      json: {
+        title: title.trim(),
+        authors: authors.split("\n").map((author) => author.trim()).filter(Boolean),
+        publishedYear: year.trim() ? Number(year) : null,
+        containerTitle: container.trim() || null,
+        publisher: publisher.trim() || null,
+        sourceType: type.trim() || null,
+        identifier: identifier.trim() || null,
+      },
+    }).then(() => {
+      invalidate(keys.source(projectId, source.id));
+      invalidate(keys.sources(projectId));
+      setEditing(false);
+    }, flashFailure).finally(() => setBusy(false));
+  };
+  if (!editing) return <button type="button" className="link small" onClick={() => setEditing(true)}>{icons.pencil} Edit reference details</button>;
+  return (
+    <form className="card form source-metadata-editor" onSubmit={save}>
+      <label>Title <input value={title} onChange={(event) => setTitle(event.target.value)} required maxLength={500} /></label>
+      <label>Authors <textarea value={authors} onChange={(event) => setAuthors(event.target.value)} rows={4} placeholder="One author per line" /></label>
+      <div className="row">
+        <label>Publication year <input type="number" min="1500" max="2200" value={year} onChange={(event) => setYear(event.target.value)} /></label>
+        <label>Type <input value={type} onChange={(event) => setType(event.target.value)} maxLength={100} placeholder="article, webpage, software…" /></label>
+      </div>
+      <label>Journal, site, or collection <input value={container} onChange={(event) => setContainer(event.target.value)} maxLength={500} /></label>
+      <label>Publisher <input value={publisher} onChange={(event) => setPublisher(event.target.value)} maxLength={500} /></label>
+      <label>DOI or other identifier <input value={identifier} onChange={(event) => setIdentifier(event.target.value)} maxLength={500} /></label>
+      <div className="row">
+        <button type="submit" className="primary small" disabled={busy || !title.trim()}>{busy ? "Saving…" : "Save details"}</button>
+        <button type="button" className="link small" onClick={() => setEditing(false)}>Cancel</button>
+      </div>
+    </form>
+  );
+}
+
 function DiscussSource({ source }: { source: Source }) {
   const { projectId, members, isOwner } = useProject();
   const subforums = useSubforums(projectId);
@@ -193,7 +254,8 @@ export default function SourcePage({ sourceId }: { sourceId: number }) {
       <div className="layout">
         <section>
           <h1>{source.title}</h1>
-          {source.authors.length ? <p className="muted">{source.authors.join(", ")}</p> : null}
+          <p className="muted">{sourceDetails(source)}</p>
+          <SourceMetadataEditor source={source} />
           <p className="small">
             {url ? <a href={source.locator} target="_blank" rel="noopener noreferrer">{source.locator}</a> : source.uploaded ? "Uploaded file" : source.locator}
             <span className="muted"> · added by @{source.addedBy} <Time at={source.createdAt} /></span>

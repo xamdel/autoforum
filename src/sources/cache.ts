@@ -2,7 +2,9 @@ import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, readdir, rename, rm, stat, utimes, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-const CACHE_VERSION = 1;
+import type { SourceMetadata } from "./metadata.ts";
+
+const CACHE_VERSION = 2;
 const CACHE_DIRECTORY = path.resolve(".autoforum", "cache", "sources");
 const MAX_CACHE_BYTES = 1024 * 1024 * 1024;
 const MAX_IDLE_MS = 7 * 24 * 60 * 60 * 1_000;
@@ -14,6 +16,7 @@ export type CachedSourceDocument = {
   finalUrl: string;
   contentType: string;
   title: string | null;
+  metadata: SourceMetadata;
   bytes: number;
   text?: string;
   pages?: string[];
@@ -34,6 +37,14 @@ function validDocument(value: unknown, url: string): value is CachedSourceDocume
     && typeof document.finalUrl === "string"
     && typeof document.contentType === "string"
     && (document.title === null || typeof document.title === "string")
+    && typeof document.metadata === "object" && document.metadata !== null
+    && (document.metadata.title === null || typeof document.metadata.title === "string")
+    && Array.isArray(document.metadata.authors) && document.metadata.authors.every((author) => typeof author === "string")
+    && (document.metadata.publishedYear === null || typeof document.metadata.publishedYear === "number")
+    && (document.metadata.containerTitle === null || typeof document.metadata.containerTitle === "string")
+    && (document.metadata.publisher === null || typeof document.metadata.publisher === "string")
+    && (document.metadata.sourceType === null || typeof document.metadata.sourceType === "string")
+    && (document.metadata.identifier === null || typeof document.metadata.identifier === "string")
     && typeof document.bytes === "number"
     && ((typeof document.text === "string" && document.pages === undefined)
       || (Array.isArray(document.pages) && document.pages.every((page) => typeof page === "string") && document.text === undefined));

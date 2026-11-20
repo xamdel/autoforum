@@ -10,6 +10,7 @@ import { parseAddress } from "../forum/addresses.ts";
 import { isPublicAddress } from "../network/public-address.ts";
 import { isProjectMember } from "../projects.ts";
 import { readSourceCache, writeSourceCache, type CachedSourceDocument } from "./cache.ts";
+import { emptySourceMetadata, metadataFromHtml } from "./metadata.ts";
 
 const MAX_TEXT_BYTES = 2 * 1024 * 1024;
 const MAX_PDF_BYTES = 20 * 1024 * 1024;
@@ -53,7 +54,7 @@ function htmlTitle(value: string): string | null {
   return title ? title.slice(0, 500) : null;
 }
 
-export async function extractPdfDocument(bytes: Buffer): Promise<{ title: string | null; pages: string[] }> {
+export async function extractPdfDocument(bytes: Buffer): Promise<{ title: string | null; authors: string[]; pages: string[] }> {
   const { getDocument } = await import("pdfjs-dist/legacy/build/pdf.mjs");
   const task = getDocument({
     data: new Uint8Array(bytes),
@@ -67,6 +68,8 @@ export async function extractPdfDocument(bytes: Buffer): Promise<{ title: string
     const metadata = await document.getMetadata().catch(() => null);
     const rawTitle = metadata?.info && "Title" in metadata.info ? metadata.info.Title : null;
     const title = typeof rawTitle === "string" && rawTitle.trim() ? rawTitle.trim().slice(0, 500) : null;
+    const rawAuthor = metadata?.info && "Author" in metadata.info ? metadata.info.Author : null;
+    const authors = typeof rawAuthor === "string" && rawAuthor.trim() ? [rawAuthor.trim().slice(0, 500)] : [];
     const pages: string[] = [];
     let characters = 0;
     for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
@@ -84,7 +87,7 @@ export async function extractPdfDocument(bytes: Buffer): Promise<{ title: string
       pages.push(text);
     }
     if (pages.reduce((sum, page) => sum + page.length, 0) < 5) throw new Error("source_pdf_text_unavailable");
-    return { title, pages };
+    return { title, authors, pages };
   } finally {
     await task.destroy().catch(() => undefined);
   }
@@ -201,12 +204,16 @@ export async function readRemoteSource(initial: string, options: SourceReadOptio
     if (!allowed) throw new Error("source_content_type_not_supported");
     const raw = response.contentType === "application/pdf" ? null : response.bytes.toString("utf8");
     const pdf = response.contentType === "application/pdf" ? await extractPdfDocument(response.bytes) : null;
+    const metadata = raw && response.contentType.includes("html")
+      ? metadataFromHtml(raw)
+      : { ...emptySourceMetadata(), title: pdf?.title ?? null, authors: pdf?.authors ?? [], sourceType: pdf ? "document" : null };
     const document: CachedSourceDocument = {
-      version: 1,
+      version: 2,
       url: new URL(initial).href,
       finalUrl: url.href,
       contentType: response.contentType,
-      title: pdf?.title ?? (raw && response.contentType.includes("html") ? htmlTitle(raw) : null),
+      title: metadata.title ?? (raw && response.contentType.includes("html") ? htmlTitle(raw) : null),
+      metadata,
       bytes: response.bytes.length,
       ...(pdf ? { pages: pdf.pages } : { text: response.contentType.includes("html") ? htmlToText(raw ?? "") : raw ?? "" }),
     };
@@ -223,11 +230,12 @@ export async function readUploadedSource(source: StoredSource, options: SourceRe
   if (source.mediaType === "application/pdf") {
     const pdf = await extractPdfDocument(source.payload);
     document = {
-      version: 1,
+      version: 2,
       url: source.locator,
       finalUrl: source.locator,
       contentType: source.mediaType,
       title: pdf.title,
+      metadata: { ...emptySourceMetadata(), title: pdf.title, authors: pdf.authors, sourceType: "document" },
       bytes: source.payload.length,
       pages: pdf.pages,
     };
@@ -239,11 +247,12 @@ export async function readUploadedSource(source: StoredSource, options: SourceRe
       throw new Error("source_upload_not_utf8");
     }
     document = {
-      version: 1,
+      version: 2,
       url: source.locator,
       finalUrl: source.locator,
       contentType: source.mediaType,
       title: null,
+      metadata: { ...emptySourceMetadata(), sourceType: "document" },
       bytes: source.payload.length,
       text,
     };

@@ -7,14 +7,10 @@ import { api, type Source } from "../lib/api.ts";
 import { plural } from "../lib/format.ts";
 import { invalidate } from "../lib/query.ts";
 import { link, navigate, path } from "../lib/router.ts";
+import { sourceDetails } from "../lib/sources.ts";
 import { AddressChip, Empty, Failure, flashFailure, icons, KindIcon, Loading, Modal, Time } from "../components/ui.tsx";
 import { useProject } from "../state/project.tsx";
 import { keys, useSources } from "../state/queries.ts";
-
-function place(source: Source): string {
-  if (source.uploaded) return "uploaded file";
-  try { return new URL(source.locator).hostname; } catch { return source.locator; }
-}
 
 function AddSource({ onClose }: { onClose(): void }) {
   const { projectId } = useProject();
@@ -65,6 +61,7 @@ function AddSource({ onClose }: { onClose(): void }) {
           {icons.file} {busy === "file" ? "Uploading…" : "Upload a PDF or text file"}
         </button>
         <p className="muted small">PDFs are limited to 20 MB; UTF-8 text files to 2 MB. Files are stored privately and shown only as extracted text.</p>
+        <p className="muted small">Each source should be one work or document, not a search page or results list.</p>
       </form>
     </Modal>
   );
@@ -73,7 +70,17 @@ function AddSource({ onClose }: { onClose(): void }) {
 function sourceMatches(source: Source, query: string): boolean {
   if (!query) return true;
   const words = query.toLocaleLowerCase().split(/\s+/).filter(Boolean);
-  const haystack = [source.title, source.locator, ...source.authors, ...source.tags].join(" ").toLocaleLowerCase();
+  const haystack = [
+    source.title,
+    source.locator,
+    ...source.authors,
+    source.publishedYear,
+    source.containerTitle,
+    source.publisher,
+    source.sourceType,
+    source.identifier,
+    ...source.tags,
+  ].filter(Boolean).join(" ").toLocaleLowerCase();
   return words.every((word) => haystack.includes(word));
 }
 
@@ -130,10 +137,7 @@ export default function Library() {
                   {shown.map((source) => (
                     <article className="source-card" key={source.id}>
                       <a className="source-title" href={link(projectId, "library", source.id)}><KindIcon kind="source" /> {source.title}</a>
-                      <div className="muted small">
-                        {source.authors.length ? `${source.authors.slice(0, 6).join(", ")}${source.authors.length > 6 ? " et al." : ""} · ` : ""}
-                        {place(source)}
-                      </div>
+                      <div className="muted small">{sourceDetails(source)}</div>
                       {source.tags.length ? <div className="source-tags">{source.tags.map((name) => <span className="chip" key={name}>{name}</span>)}</div> : null}
                       <div className="source-foot small">
                         <span className="muted">added by @{source.addedBy} <Time at={source.createdAt} /> · {plural(source.excerptCount, "excerpt")} · {plural(source.discussionCount, "thread")}</span>

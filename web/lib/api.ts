@@ -262,6 +262,11 @@ export interface Source {
   locator: string;
   title: string;
   authors: string[];
+  publishedYear: number | null;
+  containerTitle: string | null;
+  publisher: string | null;
+  sourceType: string | null;
+  identifier: string | null;
   tags: string[];
   uploaded: boolean;
   excerptCount: number;

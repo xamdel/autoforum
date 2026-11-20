@@ -8,14 +8,22 @@ import type { AppDatabase } from "../db.ts";
 import { formatAddress, reserveProjectAddresses } from "../forum/addresses.ts";
 import { isProjectMember } from "../projects.ts";
 import { extractPdfDocument, readRemoteSource } from "./reader.ts";
+import { canonicalSourceLocator, fallbackSourceTitle, type SourceMetadata } from "./metadata.ts";
 
 const MAX_TEXT_BYTES = 2 * 1024 * 1024;
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 
 const createLinkInput = z.object({ url: z.url().max(2_000) }).strict();
 const updateSourceInput = z.object({
-  tags: z.array(z.string().trim().min(1).max(40)).max(20),
-}).strict();
+  title: z.string().trim().min(1).max(500).optional(),
+  authors: z.array(z.string().trim().min(1).max(500)).max(100).optional(),
+  publishedYear: z.number().int().min(1500).max(2200).nullable().optional(),
+  containerTitle: z.string().trim().min(1).max(500).nullable().optional(),
+  publisher: z.string().trim().min(1).max(500).nullable().optional(),
+  sourceType: z.string().trim().min(1).max(100).nullable().optional(),
+  identifier: z.string().trim().min(1).max(500).nullable().optional(),
+  tags: z.array(z.string().trim().min(1).max(40)).max(20).optional(),
+}).strict().refine((value) => Object.keys(value).length > 0);
 
 function positiveId(value: string): number | null {
   const id = Number(value);
@@ -28,13 +36,6 @@ function sourceAddress<T extends { localId: number }>(source: T) {
 
 function cleanTags(tags: readonly string[]): string[] {
   return [...new Set(tags.map((tag) => tag.trim()).filter(Boolean))];
-}
-
-function titleFromUrl(url: URL): string {
-  const last = url.pathname.split("/").filter(Boolean).at(-1);
-  let pathTitle = "";
-  try { pathTitle = last ? decodeURIComponent(last) : ""; } catch { pathTitle = last ?? ""; }
-  return (pathTitle || url.hostname).replace(/[-_]+/g, " ").slice(0, 500);
 }
 
 function uploadedTitle(filename: string): string {
@@ -73,6 +74,11 @@ interface CreateSourceRecordInput {
   locator: string;
   title: string;
   authors?: string[];
+  publishedYear?: number | null;
+  containerTitle?: string | null;
+  publisher?: string | null;
+  sourceType?: string | null;
+  identifier?: string | null;
   tags?: string[];
   payload?: Buffer;
   mediaType?: "application/pdf" | "text/plain";
@@ -89,7 +95,9 @@ async function createSourceRecord(database: AppDatabase, input: CreateSourceReco
     );
     if (!membership.rows[0]) throw new Error("project_not_found");
     const existing = await client.query(
-      `select row_id as id, local_id as "localId", locator, title, authors, tags,
+      `select row_id as id, local_id as "localId", locator, title, authors,
+              published_year as "publishedYear", container_title as "containerTitle", publisher,
+              source_type as "sourceType", identifier, tags,
               payload is not null as uploaded, created_at as "createdAt"
          from source where project_id = $1 and lower(locator) = lower($2)`,
       [input.projectId, input.locator],
@@ -102,16 +110,23 @@ async function createSourceRecord(database: AppDatabase, input: CreateSourceReco
     const localId = await reserveProjectAddresses(client, input.projectId, 1);
     const inserted = await client.query(
       `insert into source
-         (project_id, local_id, locator, title, authors, tags, payload, media_type, content_hash, added_by_user_id)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+         (project_id, local_id, locator, title, authors, published_year, container_title, publisher,
+          source_type, identifier, tags, payload, media_type, content_hash, added_by_user_id)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
        on conflict do nothing
-       returning row_id as id, local_id as "localId", locator, title, authors, tags,
+       returning row_id as id, local_id as "localId", locator, title, authors,
+                 published_year as "publishedYear", container_title as "containerTitle", publisher,
+                 source_type as "sourceType", identifier, tags,
                  payload is not null as uploaded, created_at as "createdAt"`,
       [input.projectId, localId, input.locator, input.title, JSON.stringify(input.authors ?? []),
-        cleanTags(input.tags ?? []), input.payload ?? null, input.mediaType ?? null, input.contentHash ?? null, input.addedByUserId],
+        input.publishedYear ?? null, input.containerTitle ?? null, input.publisher ?? null,
+        input.sourceType ?? null, input.identifier ?? null, cleanTags(input.tags ?? []),
+        input.payload ?? null, input.mediaType ?? null, input.contentHash ?? null, input.addedByUserId],
     );
     const resolved = inserted.rows[0] ?? (await client.query(
-      `select row_id as id, local_id as "localId", locator, title, authors, tags,
+      `select row_id as id, local_id as "localId", locator, title, authors,
+              published_year as "publishedYear", container_title as "containerTitle", publisher,
+              source_type as "sourceType", identifier, tags,
               payload is not null as uploaded, created_at as "createdAt"
          from source where project_id = $1 and lower(locator) = lower($2)`,
       [input.projectId, input.locator],
@@ -131,23 +146,27 @@ export interface EnsureProjectSourceInput {
   projectId: number;
   addedByUserId: number;
   locator: string;
-  title: string;
-  authors?: string[];
 }
 
 /** Gets or creates the small, durable source record for a URL. Full remote text lives only in the bounded disk cache. */
 export async function ensureProjectSource(database: AppDatabase, input: EnsureProjectSourceInput) {
-  const locator = input.locator.trim();
-  const title = input.title.trim().slice(0, 500);
-  if (!locator || locator.length > 2_000 || !title) throw new Error("invalid_source_metadata");
+  const locator = canonicalSourceLocator(input.locator.trim());
+  if (!locator || locator.length > 2_000) throw new Error("invalid_source_metadata");
+  const document = await readRemoteSource(locator);
+  const metadata: SourceMetadata = document.metadata;
   const result = await createSourceRecord(database, {
     projectId: input.projectId,
     addedByUserId: input.addedByUserId,
     locator,
-    title,
-    authors: input.authors,
+    title: metadata.title ?? fallbackSourceTitle(locator),
+    authors: metadata.authors,
+    publishedYear: metadata.publishedYear,
+    containerTitle: metadata.containerTitle,
+    publisher: metadata.publisher,
+    sourceType: metadata.sourceType,
+    identifier: metadata.identifier,
   });
-  return { address: result.source.address, created: result.created };
+  return { source: result.source, address: result.source.address, created: result.created };
 }
 
 export function createSourceLibraryRoutes(database: AppDatabase) {
@@ -161,7 +180,9 @@ export function createSourceLibraryRoutes(database: AppDatabase) {
       return context.json({ error: "project_not_found" }, 404);
     }
     const result = await database.pool.query(
-      `select s.row_id as id, s.local_id as "localId", s.locator, s.title, s.authors, s.tags,
+      `select s.row_id as id, s.local_id as "localId", s.locator, s.title, s.authors,
+              s.published_year as "publishedYear", s.container_title as "containerTitle", s.publisher,
+              s.source_type as "sourceType", s.identifier, s.tags,
               s.payload is not null as uploaded, u.handle as "addedBy", s.created_at as "createdAt",
               count(distinct e.row_id)::int as "excerptCount",
               count(distinct p.thread_id)::int as "discussionCount"
@@ -193,12 +214,10 @@ export function createSourceLibraryRoutes(database: AppDatabase) {
       return context.json({ error: "source_protocol_not_allowed" }, 422);
     }
     try {
-      const document = await readRemoteSource(url.href);
-      const created = await createSourceRecord(database, {
+      const created = await ensureProjectSource(database, {
         projectId,
         addedByUserId: actor.id,
         locator: url.href,
-        title: document.title?.trim().slice(0, 500) || titleFromUrl(url),
       });
       return context.json(created, created.created ? 201 : 200);
     } catch (error) {
@@ -220,10 +239,12 @@ export function createSourceLibraryRoutes(database: AppDatabase) {
       const payload = await boundedBody(context.req.raw);
       let mediaType: "application/pdf" | "text/plain";
       let title = filename;
+      let authors: string[] = [];
       if (payload.subarray(0, 5).toString("ascii") === "%PDF-") {
         mediaType = "application/pdf";
         const pdf = await extractPdfDocument(payload);
         if (pdf.title) title = pdf.title;
+        authors = pdf.authors;
       } else {
         if (payload.length > MAX_TEXT_BYTES || payload.includes(0)) throw new Error("source_content_type_not_supported");
         try { new TextDecoder("utf-8", { fatal: true }).decode(payload); } catch { throw new Error("source_upload_not_utf8"); }
@@ -235,6 +256,8 @@ export function createSourceLibraryRoutes(database: AppDatabase) {
         addedByUserId: actor.id,
         locator: `upload:sha256:${digest.toString("hex")}`,
         title,
+        authors,
+        sourceType: "document",
         payload,
         mediaType,
         contentHash: digest,
@@ -259,9 +282,29 @@ export function createSourceLibraryRoutes(database: AppDatabase) {
     if (!projectId || !sourceId || !input.success || !await isProjectMember(database, actor.id, projectId)) {
       return context.json({ error: input.success ? "source_not_found" : "invalid_input" }, input.success ? 404 : 400);
     }
-    const result = await database.pool.query<{ tags: string[] }>(
-      "update source set tags = $3 where project_id = $1 and row_id = $2 returning tags",
-      [projectId, sourceId, cleanTags(input.data.tags)],
+    const has = (key: keyof typeof input.data) => Object.prototype.hasOwnProperty.call(input.data, key);
+    const result = await database.pool.query(
+      `update source set
+         title = case when $3 then $4 else title end,
+         authors = case when $5 then $6::jsonb else authors end,
+         published_year = case when $7 then $8 else published_year end,
+         container_title = case when $9 then $10 else container_title end,
+         publisher = case when $11 then $12 else publisher end,
+         source_type = case when $13 then $14 else source_type end,
+         identifier = case when $15 then $16 else identifier end,
+         tags = case when $17 then $18::text[] else tags end
+       where project_id = $1 and row_id = $2
+       returning title, authors, published_year as "publishedYear", container_title as "containerTitle",
+                 publisher, source_type as "sourceType", identifier, tags`,
+      [projectId, sourceId,
+        has("title"), input.data.title ?? "",
+        has("authors"), JSON.stringify(input.data.authors ?? []),
+        has("publishedYear"), input.data.publishedYear ?? null,
+        has("containerTitle"), input.data.containerTitle ?? null,
+        has("publisher"), input.data.publisher ?? null,
+        has("sourceType"), input.data.sourceType ?? null,
+        has("identifier"), input.data.identifier ?? null,
+        has("tags"), cleanTags(input.data.tags ?? [])],
     );
     return result.rows[0] ? context.json(result.rows[0]) : context.json({ error: "source_not_found" }, 404);
   });
@@ -275,7 +318,9 @@ export function createSourceLibraryRoutes(database: AppDatabase) {
       return context.json({ error: "source_not_found" }, 404);
     }
     const source = await database.pool.query(
-      `select s.row_id as id, s.local_id as "localId", s.locator, s.title, s.authors, s.tags,
+      `select s.row_id as id, s.local_id as "localId", s.locator, s.title, s.authors,
+              s.published_year as "publishedYear", s.container_title as "containerTitle", s.publisher,
+              s.source_type as "sourceType", s.identifier, s.tags,
               s.payload is not null as uploaded, u.handle as "addedBy", s.created_at as "createdAt",
               (select count(*)::int from excerpt e where e.source_id = s.row_id) as "excerptCount",
               (select count(distinct p.thread_id)::int from post p

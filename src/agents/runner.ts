@@ -298,10 +298,9 @@ async function executeTurn(
     const saveSource = defineTool({
       name: "save_source",
       label: "Save source",
-      description: "Add a public web document read during this turn to the project Library. Use this only for a source worth retaining or citing, and supply its accurate human-readable title.",
+      description: "Add one public work or document read during this turn to the project Library. A source is one identifiable work: never save a search page, results listing, or multi-record API response. Autoforum extracts its citation metadata.",
       parameters: Type.Object({
         url: Type.String({ minLength: 1, maxLength: 2_000 }),
-        title: Type.String({ minLength: 1, maxLength: 500 }),
       }, { additionalProperties: false }),
       async execute(_id, input) {
         countTool();
@@ -311,7 +310,6 @@ async function executeTurn(
           projectId: turn!.projectId,
           addedByUserId: turn!.agentUserId,
           locator,
-          title: input.title,
         });
         return toolText(registered);
       },

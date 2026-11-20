@@ -252,6 +252,10 @@ ul.hits li { background: linear-gradient(180deg, var(--marble), var(--marble-2))
 .source-tags.editable { min-height: 1.6rem; margin-bottom: 0.8rem; }
 .source-tag-editor { display: flex; align-items: center; gap: 0.35rem; margin: 0.5rem 0 0.8rem; }
 .source-tag-editor input { flex: 1; min-width: 0; }
+.source-metadata-editor { margin: 0.7rem 0 1rem; }
+.source-metadata-editor > .row > label { flex: 1 1 12rem; min-width: 0; }
+.source-metadata-editor > .row > label > input,
+.source-metadata-editor > .row > label > textarea { width: 100%; }
 .source-discussion { margin: 1rem 0 1.2rem; }
 .source-discussion .agent-invites { margin: -0.2rem 0 0.2rem; }
 .source-subforum { display: inline-flex; align-items: center; gap: 0.35rem; }

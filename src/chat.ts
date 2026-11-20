@@ -91,7 +91,7 @@ export function describeScribeToolActivity(activity: ScribeToolActivity): string
       return url ? `Reading ${url}…` : "Reading a web source…";
     }
     case "save_source":
-      return `Saving a source${quoted(input.title) ? ` as ${quoted(input.title)}` : ""}…`;
+      return `Saving a source${quoted(input.url) ? ` from ${quoted(input.url)}` : ""}…`;
     case "read_source": {
       const address = clipped(input.address);
       return address ? `Reading [[${address}]]…` : "Reading a source…";

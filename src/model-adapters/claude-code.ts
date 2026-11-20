@@ -146,7 +146,6 @@ function toolServer(
       }, run("read_web")),
       tool("save_source", description("save_source"), {
         url: z.string().min(1).max(2_000),
-        title: z.string().min(1).max(500),
       }, run("save_source")),
       tool("read_source", description("read_source"), {
         address: z.string().max(100),

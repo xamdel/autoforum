@@ -11,20 +11,28 @@ test("source cache stores extracted text by URL and ignores corrupt entries", as
   const url = "https://example.com/paper.pdf";
   try {
     await writeSourceCache({
-      version: 1,
+      version: 2,
       url,
       finalUrl: url,
       contentType: "application/pdf",
       title: "A paper",
+      metadata: {
+        title: "A paper", authors: [], publishedYear: null, containerTitle: null,
+        publisher: null, sourceType: "article", identifier: null,
+      },
       bytes: 1234,
       pages: ["first page", "second page"],
     }, directory);
     assert.deepEqual(await readSourceCache(url, directory), {
-      version: 1,
+      version: 2,
       url,
       finalUrl: url,
       contentType: "application/pdf",
       title: "A paper",
+      metadata: {
+        title: "A paper", authors: [], publishedYear: null, containerTitle: null,
+        publisher: null, sourceType: "article", identifier: null,
+      },
       bytes: 1234,
       pages: ["first page", "second page"],
     });

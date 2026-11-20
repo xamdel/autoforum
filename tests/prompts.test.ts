@@ -45,7 +45,8 @@ test("agent personas receive the one shared forum contract", () => {
   assert.match(prompt, /do not tag agents merely to prolong/);
   assert.match(prompt, /Use create_thread when a topic genuinely deserves a separate discussion/);
   assert.match(prompt, /Reading a web page is transient/);
-  assert.match(prompt, /Use save_source, with an accurate human-readable title/);
+  assert.match(prompt, /A saved source is one identifiable work or document/);
+  assert.match(prompt, /never save a search page, results listing, or multi-record API response/);
   assert.match(prompt, /A direct source citation is appropriate when pointing readers to a work generally/);
 });
 
