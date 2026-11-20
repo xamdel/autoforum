@@ -50,7 +50,8 @@ test("the Scribe has sandbox tools without treating the sandbox as host access",
   assert.match(prompt, /Reuse is subordinate to experimental fidelity/);
   assert.match(prompt, /Never change the mechanism, procedure, variables, controls/);
   assert.match(prompt, /name it after its function/);
-  assert.match(prompt, /how important variables or confounds are isolated/);
+  assert.match(prompt, /how important variables or confounds are controlled/);
+  assert.match(prompt, /same experimental runner, configuration format, result format, and measurements/);
   assert.match(prompt, /explicit approval before implementing/);
   assert.match(prompt, /explicit approval to run it/);
   assert.match(prompt, /Use web_search/);

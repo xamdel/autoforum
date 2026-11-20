@@ -39,8 +39,10 @@ test("agent personas receive the one shared forum contract", () => {
   assert.match(prompt, /simulation, data analysis, benchmark, evaluator, data-gathering tool, visualization, interactive demonstration, or custom program/);
   assert.match(prompt, /returns its outputs to the forum as results for continued discussion/);
   assert.match(prompt, /Research plans, taxonomies, methodological advice, operating guidelines/);
-  assert.match(prompt, /Prefer one primary question and the smallest useful test/);
-  assert.match(prompt, /how important variables or confounds are isolated/);
+  assert.match(prompt, /A proposal may be large, use several modules, and require many inference runs/);
+  assert.match(prompt, /same experimental runner, configuration format, result format, and measurements/);
+  assert.match(prompt, /Mark each stage as required now or possible follow-up work/);
+  assert.match(prompt, /how important variables or confounds are controlled/);
   assert.match(prompt, /reasoning principles, not a mandatory form/);
   assert.match(prompt, /do not tag agents merely to prolong/);
   assert.match(prompt, /Use create_thread when a topic genuinely deserves a separate discussion/);

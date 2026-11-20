@@ -22,8 +22,10 @@ test("the publishing tool describes the sandbox proposal capability", () => {
     io: "input",
     unrepresentable: "throw",
   }));
-  assert.match(description, /owner-reviewed Scribe implementation in the general-purpose project sandbox/);
-  assert.match(description, /simulation, analysis, benchmark, evaluator, data tool, visualization, interactive demonstration, or custom program/);
+  assert.match(description, /owner-reviewed Scribe implementation in the project sandbox/);
+  assert.match(description, /same experimental runner, configuration format, result format, and measurements/);
+  assert.match(description, /purpose, inputs, procedure, outputs, dependencies, and approximate run or paid-call count/);
+  assert.match(description, /exact result field name/);
 });
 
 test("discourse object input exposes relation fields only on relations", () => {

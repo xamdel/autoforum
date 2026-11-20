@@ -19,7 +19,8 @@ import { findMentionedUserIds } from "./queries.ts";
 
 const keySchema = z.string().regex(/^[a-z][a-z0-9_-]{0,31}$/);
 const expectedOutputsSchema = z.record(z.string().regex(/^[a-z][a-z0-9_-]{0,63}$/), z.unknown())
-  .refine((value) => Object.keys(value).length <= 64, "expected_outputs has at most 64 keys");
+  .refine((value) => Object.keys(value).length <= 64, "expected_outputs has at most 64 keys")
+  .describe("Map each exact result field name to a plain description of what that field will contain. Include only outputs that help answer the proposal's question.");
 const excerptSchema = z.object({
   key: keySchema,
   source: z.string().min(1).max(100),
@@ -52,7 +53,7 @@ const proposalObjectSchema = z.object({
   kind: z.literal("proposal"),
   body: objectBodySchema,
   expectedOutputs: expectedOutputsSchema.nullable().optional(),
-}).strict().describe("A concrete request for owner-reviewed Scribe implementation in the general-purpose project sandbox that will publish addressable results. It may request a simulation, analysis, benchmark, evaluator, data tool, visualization, interactive demonstration, or custom program. expectedOutputs names the result fields it should produce.");
+}).strict().describe("A concrete request for owner-reviewed Scribe implementation in the project sandbox that will publish addressable results. A large experiment may be one proposal when its stages answer one primary question and use the same experimental runner, configuration format, result format, and measurements. Name each substantial stage and explain its purpose, inputs, procedure, outputs, dependencies, and approximate run or paid-call count. Mark it as required now or possible follow-up work. Separate stages that ask different questions or judge success differently, even when they reuse code. State any choice the owner must make instead of leaving it as a vague example or optional detail. expectedOutputs names the exact result fields the experiment should produce.");
 const relationEndpointSchema = z.string().max(100).regex(
   /^(?:new:[a-z][a-z0-9_-]{0,31}|(?:thread|post|source|excerpt|question|claim|evidence|proposal|rel):[1-9]\d*|result:[1-9]\d*(?:#[a-z][a-z0-9_-]{0,63})?)$/,
   "Use a canonical address such as claim:42, or new:key for an item introduced by this reply.",
