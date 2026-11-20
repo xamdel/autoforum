@@ -255,7 +255,9 @@ a.tag.on { background: var(--gold-soft); border-color: var(--gold); color: var(-
 .md blockquote { margin: 0.6rem 0; padding: 0.3rem 0.9rem; border-left: 3px solid var(--gold); color: var(--ink-soft); background: #f6eedf; }
 .md blockquote > :first-child { margin-top: 0.2rem; }
 .md hr { border: 0; border-top: 1px solid var(--stone); margin: 1rem 0; }
-.md-table, .table-scroll { overflow-x: auto; margin: 0.6rem 0; }
+.md-table, .table-scroll { max-width: 100%; overflow-x: auto; margin: 0.6rem 0; overscroll-behavior-inline: contain; }
+.md-table table { min-width: 100%; }
+.md-table th, .md-table td { min-width: 8rem; overflow-wrap: break-word; }
 .md table, table.data { border-collapse: collapse; font-size: 0.92rem; }
 .md th, .md td, table.data th, table.data td { border: 1px solid var(--stone); padding: 0.3rem 0.55rem; text-align: left; vertical-align: top; }
 .md th, table.data th { background: #f2eadb; font-weight: 700; }
