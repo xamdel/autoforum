@@ -4,7 +4,7 @@ import type { ModelRuntime } from "@earendil-works/pi-coding-agent";
 import { piModelRuntime } from "../model-adapters/pi.ts";
 import { webSearchPrompt } from "../prompts.ts";
 
-const DEFAULT_SEARCH_MODEL = "gpt-5.4-mini";
+const DEFAULT_SEARCH_MODEL = "gpt-6-luna";
 
 export interface WebSearchResult {
   url: string;
@@ -96,6 +96,9 @@ export async function searchWeb(query: string, maxResults = 8, runtimeOverride?:
       collectCitations(event, citations);
     },
   });
+  if (message.stopReason === "error") {
+    throw new Error(message.errorMessage?.trim() || "web_search_provider_error");
+  }
   const summary = textOf(message);
   if (!summary) throw new Error("web_search_returned_no_text");
   return {
