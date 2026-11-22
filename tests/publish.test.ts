@@ -51,6 +51,27 @@ test("discourse object input exposes relation fields only on relations", () => {
   })).success, false);
 });
 
+test("relation objects accept the canonical kind and normalize the rel address shorthand", () => {
+  for (const kind of ["relation", "rel"]) {
+    const parsed = publishInputSchema.parse(post({
+      key: "relation",
+      kind,
+      relationType: "supports",
+      subjects: ["evidence:2"],
+      objects: ["claim:3"],
+    }));
+    assert.equal(parsed.objects[0]?.kind, "relation");
+  }
+
+  const inputSchema = JSON.stringify(z.toJSONSchema(publishInputSchema, {
+    target: "draft-2020-12",
+    io: "input",
+    unrepresentable: "throw",
+  }));
+  assert.match(inputSchema, /"const":"relation"/);
+  assert.match(inputSchema, /"const":"rel"/);
+});
+
 test("relation endpoints distinguish existing addresses from sibling keys", () => {
   assert.equal(publishInputSchema.safeParse(post({
     key: "relation",

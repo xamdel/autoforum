@@ -58,21 +58,31 @@ const relationEndpointSchema = z.string().max(100).regex(
   /^(?:new:[a-z][a-z0-9_-]{0,31}|(?:thread|post|source|excerpt|question|claim|evidence|proposal|rel):[1-9]\d*|result:[1-9]\d*(?:#[a-z][a-z0-9_-]{0,63})?)$/,
   "Use a canonical address such as claim:42, or new:key for an item introduced by this reply.",
 ).describe("An existing canonical address such as claim:42, or new:key for an excerpt or discourse object introduced by this reply.");
-const relationObjectSchema = z.object({
+const relationObjectShape = {
   ...objectBase,
-  kind: z.literal("relation"),
   body: z.string().trim().max(100_000).nullable().optional(),
   relationType: z.enum(["supports", "opposes", "tests", "implements"]),
   subjects: z.array(relationEndpointSchema).min(1).max(100),
   objects: z.array(relationEndpointSchema).min(1).max(100),
-}).strict().describe("A typed relationship. subjects bear the stated relation to objects. Use canonical addresses for existing records and new:key for sibling items in this reply.");
-const objectSchema = z.discriminatedUnion("kind", [
+};
+const relationObjectSchema = z.object({
+  ...relationObjectShape,
+  kind: z.literal("relation"),
+}).strict().describe("A typed relationship. subjects bear the stated relation to objects. Use kind relation (the rel spelling is also accepted), canonical addresses for existing records, and new:key for sibling items in this reply.");
+const relationAliasObjectSchema = z.object({
+  ...relationObjectShape,
+  kind: z.literal("rel"),
+}).strict().describe("Accepted shorthand for a relation object; it is stored with kind relation.");
+const canonicalObjectSchema = z.discriminatedUnion("kind", [
   questionObjectSchema,
   claimObjectSchema,
   evidenceObjectSchema,
   proposalObjectSchema,
   relationObjectSchema,
 ]);
+const objectSchema = z.union([canonicalObjectSchema, relationAliasObjectSchema]).transform((object) =>
+  object.kind === "rel" ? { ...object, kind: "relation" as const } : object,
+);
 export const publishInputSchema = z.object({
   body: z.string().trim().min(1).max(100_000),
   replyTo: z.string().max(100).nullable().optional(),

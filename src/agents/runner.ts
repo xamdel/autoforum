@@ -121,21 +121,37 @@ function toolText(value: unknown) {
   return { content: [{ type: "text" as const, text: typeof value === "string" ? value : JSON.stringify(value, null, 2) }], details: undefined };
 }
 
-function lastAssistantText(messages: readonly unknown[]): string | null {
+export function salvageRejectedPublishReply(messages: readonly unknown[]): Omit<PublishInput, "replyTo"> | null {
+  let argumentsValue: unknown = null;
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index] as { role?: string; content?: unknown };
     if (message.role !== "assistant" || !Array.isArray(message.content)) continue;
-    const text = message.content
-      .filter((block): block is { type: "text"; text: string } => {
-        const candidate = block as { type?: string; text?: unknown };
-        return candidate.type === "text" && typeof candidate.text === "string";
-      })
-      .map((block) => block.text)
-      .join("\n")
-      .trim();
-    if (text) return text;
+    for (let blockIndex = message.content.length - 1; blockIndex >= 0; blockIndex -= 1) {
+      const block = message.content[blockIndex] as { type?: string; name?: string; arguments?: unknown };
+      if (block.type === "toolCall" && block.name === "publish_reply") {
+        argumentsValue = block.arguments;
+        break;
+      }
+    }
+    if (argumentsValue) break;
   }
-  return null;
+  if (!argumentsValue || typeof argumentsValue !== "object") return null;
+
+  const raw = argumentsValue as Record<string, unknown>;
+  const parsedBody = publishInputSchema.shape.body.safeParse(raw.body);
+  if (!parsedBody.success) return null;
+  const unavailableKeys = new Set<string>();
+  const body = parsedBody.data.replace(/\[\[new:([^\[\]]+)\]\]/g, (_match, key: string) => {
+    unavailableKeys.add(key);
+    return `[attachment unavailable: ${key}]`;
+  });
+  const excerptCount = Array.isArray(raw.excerpts) ? raw.excerpts.length : 0;
+  const objectCount = Array.isArray(raw.objects) ? raw.objects.length : 0;
+  const referenceNote = unavailableKeys.size
+    ? ` ${unavailableKeys.size} local attachment reference${unavailableKeys.size === 1 ? " was" : "s were"} marked unavailable in the prose.`
+    : "";
+  const warning = `> **Autoforum attachment warning:** The prose was published, but its structured attachments were not created because \`publish_reply\` validation failed (${excerptCount} excerpt${excerptCount === 1 ? "" : "s"}, ${objectCount} discourse object${objectCount === 1 ? "" : "s"}).${referenceNote}`;
+  return { body: `${body}\n\n---\n\n${warning}`, excerpts: [], objects: [] };
 }
 
 function usageFrom(messages: readonly unknown[]) {
@@ -455,11 +471,13 @@ async function executeTurn(
     if (timedOut) throw new Error("turn_timeout");
     if (jobSignal.aborted) throw new Error("queue_job_aborted");
     const messages = session.state.messages;
-    const fallback = lastAssistantText(messages);
+    const salvaged = salvageRejectedPublishReply(messages);
     const selectedDraft = draft as Omit<PublishInput, "replyTo"> | null;
+    if (!selectedDraft && !salvaged) throw new Error("publish_reply_not_accepted");
+    const publicationWarning = selectedDraft ? null : "publish_reply_attachments_rejected";
     const finalPost: PublishInput = selectedDraft
       ? { ...selectedDraft, replyTo: formatAddress("post", turn.triggerLocalId) }
-      : { body: fallback || "I could not produce a reply.", replyTo: formatAddress("post", turn.triggerLocalId), objects: [], excerpts: [] };
+      : { ...salvaged!, replyTo: formatAddress("post", turn.triggerLocalId) };
     const accounting = usageFrom(messages);
     accounting.usage.input += searchAccounting.input;
     accounting.usage.output += searchAccounting.output;
@@ -477,13 +495,13 @@ async function executeTurn(
         author: { id: turn.agentUserId, isOwner: false },
         post: finalPost,
       });
-      const completed = await client.query(
-        `update agent_turn
-            set status = 'completed', output_post_id = $2, usage = $3,
-                reported_cost = $4, finished_at = now()
-          where row_id = $1 and status = 'running' and stop_requested_at is null`,
-        [turn.id, published.postId, accounting.usage, accounting.reportedCost],
-      );
+       const completed = await client.query(
+         `update agent_turn
+             set status = 'completed', output_post_id = $2, usage = $3,
+                 reported_cost = $4, error = $5, finished_at = now()
+           where row_id = $1 and status = 'running' and stop_requested_at is null`,
+         [turn.id, published.postId, accounting.usage, accounting.reportedCost, publicationWarning],
+       );
       if (completed.rowCount !== 1) throw new Error("turn_stopped_before_publication");
       await client.query("commit");
       if (published.turnIds.length) {
@@ -495,7 +513,7 @@ async function executeTurn(
     } finally {
       client.release();
     }
-    log(agentLog, "agent.completed", { turnId: turn.id, messages, ...accounting });
+    log(agentLog, "agent.completed", { turnId: turn.id, publicationWarning, messages, ...accounting });
   } catch (error) {
     if (turn) {
       if (await stopWasRequested(database, turn.id).catch(() => false)) await finishStopped(database, turn.id);
