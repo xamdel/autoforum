@@ -1,0 +1,1 @@
+ALTER TABLE "project_member" ADD COLUMN "can_edit_workspace" boolean DEFAULT false NOT NULL;

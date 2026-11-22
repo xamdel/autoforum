@@ -9,7 +9,7 @@ import { api, type User } from "../lib/api.ts";
 import { exactTime } from "../lib/format.ts";
 import { invalidate } from "../lib/query.ts";
 import { link } from "../lib/router.ts";
-import { Avatar, Badge, ConfirmButton, copyText, flash, flashFailure, icons, Time, Who } from "../components/ui.tsx";
+import { Avatar, Badge, ConfirmButton, copyText, flash, flashFailure, icons, Switch, Time, Who } from "../components/ui.tsx";
 import { useProject } from "../state/project.tsx";
 import { keys, useSessions, useUsers } from "../state/queries.ts";
 
@@ -20,13 +20,17 @@ function Members() {
   const users = useUsers(isOwner);
   const [invite, setInvite] = useState<string | null>(null);
   const [issuing, setIssuing] = useState(false);
+  const [changingWorkspace, setChangingWorkspace] = useState<number | null>(null);
   const inside = new Set(members.map((member) => member.id));
   const outside = (users.data ?? []).filter((user) => !user.disabledAt && !inside.has(user.id));
-  const change = (request: Promise<unknown>) => request.then(() => invalidate(keys.members(projectId)), flashFailure);
+  const change = (request: Promise<unknown>) => request.then(() => {
+    invalidate(keys.members(projectId));
+    invalidate(keys.agents(projectId));
+  }, flashFailure);
   return (
     <>
       <h2>Members of {project.name}</h2>
-      <p className="muted small">Every member can read and post in this project's forum and Library, invoke agents within its allowances, and use a private research Scribe. People and agents are members alike; the owner is a member of every project.</p>
+      <p className="muted small">Every member can read and post in this project's forum and Library, invoke agents within its allowances, use a private research Scribe, and open running workspace pages. Workspace editing gives a person's private Scribe full authority inside the shared project sandbox. People and agents are members alike; the owner is a member of every project.</p>
       {isOwner ? (
         <div className="row">
           <button type="button" className="primary small" disabled={issuing} onClick={() => {
@@ -54,7 +58,22 @@ function Members() {
             <Avatar handle={member.handle} size="small" />
             <Who handle={member.handle} kind={member.kind} />
             {member.isOwner ? <Badge tone="quiet">owner</Badge> : null}
+            {member.canEditWorkspace && !member.isOwner ? <Badge tone="quiet">workspace editor</Badge> : null}
             <span className="muted small">joined <Time at={member.joinedAt} /></span>
+            {isOwner && member.kind === "human" && !member.isOwner ? (
+              <Switch
+                checked={member.canEditWorkspace}
+                disabled={changingWorkspace === member.id}
+                label={`Allow @${member.handle} to edit the workspace`}
+                title="Their private Scribe receives full file and command access inside this project's shared sandbox"
+                onChange={(canEditWorkspace) => {
+                  setChangingWorkspace(member.id);
+                  api(`/projects/${projectId}/members/${member.id}`, { method: "PATCH", json: { canEditWorkspace } })
+                    .then(() => invalidate(keys.members(projectId)), flashFailure)
+                    .finally(() => setChangingWorkspace(null));
+                }}
+              >Can edit workspace</Switch>
+            ) : null}
             {isOwner && !member.isOwner ? (
               <ConfirmButton label="Remove" confirm="Click again to remove" className="link danger-link push" onConfirm={() => void change(api(`/projects/${projectId}/members/${member.id}`, { method: "DELETE" }))} />
             ) : null}
@@ -66,7 +85,7 @@ function Members() {
           <span className="muted">Add</span>
           {outside.map((user) => (
             <button type="button" key={user.id} className="attach" onClick={() => void change(api(`/projects/${projectId}/members`, { method: "POST", json: { userId: user.id } }))}>
-              {icons.plus} @{user.handle}{user.kind === "agent" ? " (agent)" : ""}
+              {icons.plus} @{user.handle}{user.kind === "agent" ? ` (agent${user.ownerHandle ? ` · @${user.ownerHandle}` : ""})` : ""}
             </button>
           ))}
         </div>

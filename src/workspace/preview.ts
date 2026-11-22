@@ -210,7 +210,7 @@ async function authorizedProject(database: AppDatabase, userId: number, projectI
     `select p.row_id as "projectId", p.public_id as "publicId"
        from project p join project_member m on m.project_id = p.row_id
        join forum_user u on u.row_id = m.user_id
-      where p.row_id = $1 and m.user_id = $2 and u.is_owner = true and u.disabled_at is null`,
+      where p.row_id = $1 and m.user_id = $2 and u.disabled_at is null`,
     [projectId, userId],
   );
   return result.rows[0] ?? null;
@@ -240,7 +240,6 @@ export function createPreviewFeature(
     if (!hasExactBrowserOrigin(context)) return context.json({ error: "invalid_origin" }, 403);
     const actor = await readBrowserUser(context, database);
     if (!actor) return context.json({ error: "unauthenticated" }, 401);
-    if (!actor.isOwner) return context.json({ error: "owner_required" }, 403);
     const projectId = positiveId(context.req.param("projectId"));
     if (!projectId) return context.json({ error: "project_not_found" }, 404);
     const project = await authorizedProject(database, actor.id, projectId);

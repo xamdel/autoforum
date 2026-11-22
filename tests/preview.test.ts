@@ -81,7 +81,7 @@ test("preview launch and proxy keep forum authority out of the sandbox", async (
     pool: {
       async query(sql: string) {
         if (sql.includes("from browser_session")) {
-          return { rows: authorized ? [{ id: 1, kind: "human", handle: "owner", is_owner: true }] : [] };
+          return { rows: authorized ? [{ id: 4, kind: "human", handle: "member", is_owner: false }] : [] };
         }
         if (sql.includes("update browser_session")) return { rows: [] };
         if (sql.includes("from project p join project_member")) {

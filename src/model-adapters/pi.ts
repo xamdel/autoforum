@@ -101,7 +101,7 @@ function simpleApiKeyProviders(models: ModelRuntime) {
     Boolean(provider.auth.apiKey?.login));
 }
 
-/** Non-secret provider status for the owner UI. */
+/** Non-secret provider status for model pickers; only the owner can change the stored keys. */
 export async function listModelApiKeys(models: ModelRuntime): Promise<ModelApiKeyProvider[]> {
   const stored = new Map((await models.listCredentials()).map((credential) => [credential.providerId, credential.type]));
   return simpleApiKeyProviders(models).map((provider) => {
@@ -166,8 +166,10 @@ export function createModelApiKeyRoutes(database: AppDatabase) {
   };
 
   routes.get("/", async (context) => {
-    const denied = await requireOwner(context);
-    return denied ?? context.json({ providers: await listModelApiKeys(await piModelRuntime()) });
+    const actor = await readBrowserUser(context, database);
+    return actor
+      ? context.json({ providers: await listModelApiKeys(await piModelRuntime()) })
+      : context.json({ error: "unauthenticated" }, 401);
   });
 
   routes.put("/:provider", async (context) => {

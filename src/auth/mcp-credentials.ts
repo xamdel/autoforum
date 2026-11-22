@@ -19,6 +19,16 @@ function isUniqueViolation(error: unknown): boolean {
   return typeof error === "object" && error !== null && "code" in error && error.code === "23505";
 }
 
+async function canManageAgent(database: AppDatabase, actor: BrowserUser, userId: number): Promise<boolean> {
+  const result = await database.pool.query(
+    `select 1 from forum_user
+      where row_id = $1 and kind = 'agent' and disabled_at is null
+        and ($2::boolean or created_by_user_id = $3)`,
+    [userId, actor.isOwner, actor.id],
+  );
+  return Boolean(result.rows[0]);
+}
+
 export async function authenticateMcpCredential(
   database: AppDatabase,
   authorization: string | undefined,
@@ -54,9 +64,9 @@ export function createMcpCredentialRoutes(database: AppDatabase) {
   routes.get("/users/:userId/mcp-credentials", async (context) => {
     const actor = await readBrowserUser(context, database);
     if (!actor) return context.json({ error: "unauthenticated" }, 401);
-    if (!actor.isOwner) return context.json({ error: "owner_required" }, 403);
     const userId = idFrom(context.req.param("userId"));
     if (!userId) return context.json({ error: "invalid_id" }, 400);
+    if (!await canManageAgent(database, actor, userId)) return context.json({ error: "agent_not_found" }, 404);
     const result = await database.pool.query(
       `select row_id as id, name, expires_at as "expiresAt",
               last_used_at as "lastUsedAt", revoked_at as "revokedAt",
@@ -73,9 +83,9 @@ export function createMcpCredentialRoutes(database: AppDatabase) {
     if (!hasExactBrowserOrigin(context)) return context.json({ error: "invalid_origin" }, 403);
     const actor = await readBrowserUser(context, database);
     if (!actor) return context.json({ error: "unauthenticated" }, 401);
-    if (!actor.isOwner) return context.json({ error: "owner_required" }, 403);
     const userId = idFrom(context.req.param("userId"));
     if (!userId) return context.json({ error: "invalid_id" }, 400);
+    if (!await canManageAgent(database, actor, userId)) return context.json({ error: "agent_not_found" }, 404);
     const input = createCredentialInput.safeParse(await context.req.json().catch(() => null));
     if (!input.success) return context.json({ error: "invalid_input" }, 400);
     const token = `afmcp_${generateSecret()}`;
@@ -103,15 +113,17 @@ export function createMcpCredentialRoutes(database: AppDatabase) {
     if (!hasExactBrowserOrigin(context)) return context.json({ error: "invalid_origin" }, 403);
     const actor = await readBrowserUser(context, database);
     if (!actor) return context.json({ error: "unauthenticated" }, 401);
-    if (!actor.isOwner) return context.json({ error: "owner_required" }, 403);
     const id = idFrom(context.req.param("id"));
     if (!id) return context.json({ error: "invalid_id" }, 400);
     const result = await database.pool.query(
-      `update mcp_credential
-          set revoked_at = coalesce(revoked_at, now())
-        where row_id = $1
-      returning row_id`,
-      [id],
+      `update mcp_credential credential
+          set revoked_at = coalesce(credential.revoked_at, now())
+         from forum_user agent
+        where credential.row_id = $1
+          and agent.row_id = credential.user_id and agent.kind = 'agent'
+          and ($2::boolean or agent.created_by_user_id = $3)
+      returning credential.row_id`,
+      [id, actor.isOwner, actor.id],
     );
     return result.rows[0]
       ? context.json({ ok: true })

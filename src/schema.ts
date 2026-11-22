@@ -67,6 +67,7 @@ export const forumUsers = pgTable("forum_user", {
 export const projectMembers = pgTable("project_member", {
   projectId: id("project_id").notNull().references(() => projects.rowId, { onDelete: "cascade" }),
   userId: id("user_id").notNull().references(() => forumUsers.rowId, { onDelete: "cascade" }),
+  canEditWorkspace: boolean("can_edit_workspace").notNull().default(false),
   joinedAt: time("joined_at").notNull().defaultNow(),
 }, (table) => [
   primaryKey({ columns: [table.projectId, table.userId] }),

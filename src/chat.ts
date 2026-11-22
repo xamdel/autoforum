@@ -61,6 +61,7 @@ interface ScribeProject extends ProjectSandboxIdentity {
   scribeProvider: string | null;
   scribeModel: string | null;
   scribeThinkingLevel: ScribeSelection["thinkingLevel"];
+  canEditWorkspace: boolean;
 }
 
 function clipped(value: unknown, length = 100): string | null {
@@ -247,12 +248,15 @@ export function createChatRoutes(database: AppDatabase, agentLog: AgentLog, serv
     if (!input.success) return context.json({ error: "invalid_input" }, 400);
     const project = await database.pool.query<ScribeProject>(
       `select p.row_id as "projectId", p.public_id as "publicId",
+              (u.is_owner or membership.can_edit_workspace) as "canEditWorkspace",
               coalesce(p.scribe_provider, fallback.config ->> 'provider') as "scribeProvider",
               coalesce(p.scribe_model, fallback.config ->> 'model') as "scribeModel",
               case when p.scribe_provider is null
                 then coalesce(fallback.config ->> 'thinkingLevel', 'off')
                 else p.scribe_thinking_level end as "scribeThinkingLevel"
          from project p
+         join project_member membership on membership.project_id = p.row_id and membership.user_id = $2
+         join forum_user u on u.row_id = membership.user_id and u.disabled_at is null
          left join lateral (
            select u.agent_config as config
              from project_member m join forum_user u on u.row_id = m.user_id
@@ -261,7 +265,7 @@ export function createChatRoutes(database: AppDatabase, agentLog: AgentLog, serv
             order by (lower(u.handle) = 'scribe') desc, u.row_id limit 1
          ) fallback on true
         where p.row_id = $1`,
-      [projectId],
+      [projectId, actor.id],
     );
     const workspaceProject = project.rows[0];
     if (!workspaceProject) return context.json({ error: "conversation_not_found" }, 404);
@@ -336,7 +340,7 @@ export function createChatRoutes(database: AppDatabase, agentLog: AgentLog, serv
         historyResult.rows,
         selection,
         workspaceProject,
-        actor.isOwner,
+        workspaceProject.canEditWorkspace,
         serviceAccess,
         (activity) => {
           const current = activities.get(conversationId);

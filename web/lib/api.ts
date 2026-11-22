@@ -44,6 +44,8 @@ export interface User {
   isOwner: boolean;
   disabledAt?: string | null;
   createdAt?: string;
+  ownerUserId?: number | null;
+  ownerHandle?: string | null;
 }
 
 export interface AgentRunnerStatus {
@@ -69,6 +71,9 @@ export interface Member {
   handle: string;
   isOwner: boolean;
   joinedAt: string;
+  canEditWorkspace: boolean;
+  ownerUserId?: number | null;
+  ownerHandle?: string | null;
 }
 
 export interface BrowserSession {
@@ -318,7 +323,14 @@ export interface AgentRecord {
   userId: number;
   handle: string;
   profile: AgentProfile | null;
+  provider: string | null;
+  model: string | null;
+  thinkingLevel: ThinkingLevel | null;
   disabledAt: string | null;
+  ownerUserId: number | null;
+  ownerHandle: string | null;
+  canManage: boolean;
+  inProject: boolean;
 }
 
 export type TurnStatus = "pending" | "queued" | "running" | "completed" | "failed" | "stopped";

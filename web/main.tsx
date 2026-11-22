@@ -183,9 +183,11 @@ function Shell({ user, projects, project }: { user: User; projects: Project[]; p
 
   const value = useMemo<ProjectContextValue>(() => {
     const list = members.data ?? [];
+    const currentMember = list.find((member) => member.id === user.id);
     return {
       user,
       isOwner: user.isOwner,
+      canEditWorkspace: user.isOwner || Boolean(currentMember?.canEditWorkspace),
       project,
       projectId: project.id,
       projects,
@@ -240,8 +242,8 @@ function Shell({ user, projects, project }: { user: User; projects: Project[]; p
         <main
           id="page"
           ref={main}
-          // The Workspace, and the owner's Agents page, fill the window and scroll inside themselves.
-          className={page === "workspace" || (page === "agents" && user.isOwner) ? "full" : ""}
+          // The Workspace and Agents page fill the window and scroll inside themselves.
+          className={page === "workspace" || page === "agents" ? "full" : ""}
           onScroll={(event) => positions.current.set(place, event.currentTarget.scrollTop)}
         >
           <Suspense fallback={<Loading />}>{content}</Suspense>

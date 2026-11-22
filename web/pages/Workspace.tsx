@@ -1,7 +1,7 @@
-// The Workspace: the project's sandbox, read-only from here. One slim bar says the sandbox's state and holds the
+// The Workspace: the project's shared sandbox. One slim bar says the sandbox's state and holds the
 // lifecycle and supporting controls; the image-owned workspace shell is the canvas, drawn from the same design
 // system as this app (sandbox/workspace-shell/). Source files remain available in an on-demand drawer. The Scribe's
-// chat is docked on the right (it is the only thing that changes the workspace), so asking for a change and watching
+// chat is docked on the right for members allowed to edit, so asking for a change and watching
 // it land happen side by side.
 //
 //   #/<project>/workspace              the image-owned workspace shell
@@ -535,19 +535,19 @@ function FilesDrawer({ shown, nodes, open, active, fresh, error, loading, onClos
 }
 
 export default function Workspace() {
-  const { projectId, isOwner } = useProject();
+  const { projectId, isOwner, canEditWorkspace } = useProject();
   const route = useRoute();
-  const file = route.query.get("file");
-  const conversations = useConversations(projectId, isOwner);
+  const file = canEditWorkspace ? route.query.get("file") : null;
+  const conversations = useConversations(projectId, canEditWorkspace);
   const pending = chat.use().pending;
   const scribeBusy = (conversations.data ?? []).some((conversation) => conversation.status === "running" || pending[conversation.id]);
-  const sandbox = useSandbox(projectId, isOwner, true);
+  const sandbox = useSandbox(projectId, true, true);
   const running = sandbox.data?.state === "running";
   const [filesOpen, setFilesOpen] = useState(false);
   const [transition, setTransition] = useState<Transition>(null);
   // The source tree is loaded only for the drawer; while it is open, Scribe work is watched for new files.
   const watch = scribeBusy ? 5_000 : null;
-  const tree = useTree(projectId, isOwner && running && filesOpen, watch);
+  const tree = useTree(projectId, canEditWorkspace && running && filesOpen, watch);
   const [open, setOpen] = useState<ReadonlySet<string>>(() => new Set(["pages", "modules"]));
   const [fresh, setFresh] = useState<ReadonlySet<string>>(new Set());
   const known = useRef<Set<string> | null>(null);
@@ -590,14 +590,6 @@ export default function Workspace() {
     if (!running) setFilesOpen(false);
   }, [running]);
 
-  if (!isOwner) {
-    return (
-      <div className="ws-closed">
-        <Empty>The Workspace is the project sandbox: project pages, reusable modules, generated outputs, and source files. In this version only the installation's owner can open it. What it produces reaches the forum as results and posts.</Empty>
-      </div>
-    );
-  }
-
   const openFile = (target: string) => {
     setFilesOpen(false);
     navigate(`${path(projectId, "workspace")}?file=${encodeURIComponent(target)}`);
@@ -626,7 +618,14 @@ export default function Workspace() {
   };
 
   let stage: ReactNode;
-  if (!running) stage = <Stopped status={sandbox.data} error={sandbox.error} starting={transition === "starting"} onStart={start} />;
+  if (!running) stage = isOwner
+    ? <Stopped status={sandbox.data} error={sandbox.error} starting={transition === "starting"} onStart={start} />
+    : <div className="ws-startup">
+        <span className="ws-startup-mark">{icons.folder}</span>
+        <p className="eyebrow">Project workspace</p>
+        <h1>The workspace is resting</h1>
+        <p className="muted">The installation owner must start the shared sandbox before its pages can be opened or edited.</p>
+      </div>;
   else if (file) {
     stage = (
       <FileView
@@ -644,33 +643,33 @@ export default function Workspace() {
       <header className="ws-bar small">
         <div className="ws-where">
           {/* On the left, over the edge its drawer opens from. It stays in place when the sandbox is off, so the switch beside it does not move when thrown. */}
-          <button
-            type="button"
-            className={`small ws-tool ${filesOpen ? "on" : ""}`}
-            aria-expanded={filesOpen}
-            aria-controls="workspace-files"
-            disabled={!running}
-            title={running ? "The workspace's source files, read-only" : "Start the sandbox to browse its files"}
-            onClick={() => setFilesOpen((value) => !value)}
-          >
-            {icons.folder} Files
-          </button>
+          {canEditWorkspace ? <button
+              type="button"
+              className={`small ws-tool ${filesOpen ? "on" : ""}`}
+              aria-expanded={filesOpen}
+              aria-controls="workspace-files"
+              disabled={!running}
+              title={running ? "The workspace's source files, read-only" : "The owner must start the sandbox before files can be browsed"}
+              onClick={() => setFilesOpen((value) => !value)}
+            >
+              {icons.folder} Files
+            </button> : null}
           {file ? <button type="button" className="link" onClick={() => navigate(path(projectId, "workspace"))}>← Workspace</button> : null}
-          <SandboxSwitch
-            status={sandbox.data}
-            failed={Boolean(sandbox.error && !sandbox.data)}
-            scribeBusy={scribeBusy}
-            transition={transition}
-            onStart={start}
-            onStop={stop}
-          />
+          {isOwner ? <SandboxSwitch
+              status={sandbox.data}
+              failed={Boolean(sandbox.error && !sandbox.data)}
+              scribeBusy={scribeBusy}
+              transition={transition}
+              onStart={start}
+              onStop={stop}
+            /> : <span className="muted">{canEditWorkspace ? "Shared workspace editor" : "Interactive workspace pages"}</span>}
         </div>
-        <Controls status={sandbox.data} />
+        {isOwner ? <Controls status={sandbox.data} /> : null}
         {running && scribeBusy ? <span className="ws-activity" aria-hidden="true" /> : null}
       </header>
       <div className="ws-body">
         <section className="ws-stage">{stage}</section>
-        {running ? (
+        {running && canEditWorkspace ? (
           <FilesDrawer
             shown={filesOpen}
             nodes={nodes}

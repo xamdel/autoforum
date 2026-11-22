@@ -7,6 +7,7 @@ import type { Member, Project, User } from "../lib/api.ts";
 export interface ProjectContextValue {
   user: User;
   isOwner: boolean;
+  canEditWorkspace: boolean;
   project: Project;
   projectId: number;
   projects: Project[];

@@ -8,6 +8,7 @@ import type { AppDatabase } from "./db.ts";
 
 const createProjectInput = z.object({ name: z.string().trim().min(1).max(100) }).strict();
 const addMemberInput = z.object({ userId: z.number().int().positive() }).strict();
+const updateMemberInput = z.object({ canEditWorkspace: z.boolean() }).strict();
 const scribeSelection = z.object({
   provider: z.string().trim().regex(/^[a-z0-9][a-z0-9._-]{0,63}$/),
   model: z.string().trim().regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$/),
@@ -194,9 +195,12 @@ export function createProjectRoutes(
       return context.json({ error: "project_not_found" }, 404);
     }
     const result = await database.pool.query(
-      `select u.row_id as id, u.kind, u.handle, u.is_owner as "isOwner", m.joined_at as "joinedAt"
+      `select u.row_id as id, u.kind, u.handle, u.is_owner as "isOwner", m.joined_at as "joinedAt",
+              (u.is_owner or m.can_edit_workspace) as "canEditWorkspace",
+              u.created_by_user_id as "ownerUserId", owner.handle as "ownerHandle"
          from project_member m
          join forum_user u on u.row_id = m.user_id
+         left join forum_user owner on owner.row_id = u.created_by_user_id
         where m.project_id = $1 and u.disabled_at is null
         order by lower(u.handle)`,
       [id],
@@ -232,6 +236,31 @@ export function createProjectRoutes(
       }
       throw error;
     }
+  });
+
+  routes.patch("/:id/members/:userId", async (context) => {
+    if (!hasExactBrowserOrigin(context)) return context.json({ error: "invalid_origin" }, 403);
+    const actor = await readBrowserUser(context, database);
+    if (!actor) return context.json({ error: "unauthenticated" }, 401);
+    if (!actor.isOwner) return context.json({ error: "owner_required" }, 403);
+    const id = projectId(context.req.param("id"));
+    const userId = projectId(context.req.param("userId"));
+    if (!id || !userId) return context.json({ error: "invalid_id" }, 400);
+    const input = updateMemberInput.safeParse(await context.req.json().catch(() => null));
+    if (!input.success) return context.json({ error: "invalid_input" }, 400);
+    const result = await database.pool.query(
+      `update project_member membership
+          set can_edit_workspace = $3
+         from forum_user member
+        where membership.project_id = $1 and membership.user_id = $2
+          and member.row_id = membership.user_id
+          and member.kind = 'human' and member.is_owner = false and member.disabled_at is null
+      returning membership.user_id`,
+      [id, userId, input.data.canEditWorkspace],
+    );
+    return result.rows[0]
+      ? context.json({ ok: true })
+      : context.json({ error: "member_not_found_or_owner" }, 404);
   });
 
   routes.delete("/:id/members/:userId", async (context) => {

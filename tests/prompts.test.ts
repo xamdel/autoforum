@@ -63,7 +63,7 @@ test("other authored model prompts are generated from the prompt module", () => 
   assert.match(scribePrompt, /using its tokens rather than new colours, fonts, corner radii, or a dark theme/);
   assert.match(scribePrompt, /extend its public boundary, add an adapter or module/);
   assert.match(scribePrompt, /runs through its public interface/);
-  assert.match(scribePrompt, /Wait for the owner's explicit approval before implementing/);
+  assert.match(scribePrompt, /Wait for the user's explicit approval before implementing/);
   assert.match(scribePrompt, /Routine builds, tests, and small local checks do not require this second approval/);
   assert.match(webSearchPrompt("bounded inquiry", 4), /bounded inquiry/);
   assert.match(webSearchPrompt("bounded inquiry", 4), /up to 4/);

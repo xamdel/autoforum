@@ -105,23 +105,58 @@ export function createAgentProfileRoutes(database: AppDatabase) {
   routes.get("/agents", async (context) => {
     const actor = await readBrowserUser(context, database);
     if (!actor) return context.json({ error: "unauthenticated" }, 401);
-    if (!actor.isOwner) return context.json({ error: "owner_required" }, 403);
+    const requestedProjectId = context.req.query("projectId");
+    const projectId = requestedProjectId === undefined ? null : positiveId(requestedProjectId);
+    if (requestedProjectId !== undefined && !projectId) return context.json({ error: "invalid_id" }, 400);
+    if (!actor.isOwner && projectId === null) return context.json({ error: "project_required" }, 400);
+    if (projectId !== null) {
+      const membership = await database.pool.query(
+        "select 1 from project_member where project_id = $1 and user_id = $2",
+        [projectId, actor.id],
+      );
+      if (!membership.rows[0]) return context.json({ error: "project_not_found" }, 404);
+    }
     const result = await database.pool.query<{
       userId: number;
       handle: string;
       profile: unknown;
       disabledAt: Date | null;
+      ownerUserId: number | null;
+      ownerHandle: string | null;
+      inProject: boolean;
     }>(
-      `select row_id as "userId", handle, agent_config as profile, disabled_at as "disabledAt"
-         from forum_user
-        where kind = 'agent'
-        order by lower(handle)`,
+      `select agent.row_id as "userId", agent.handle, agent.agent_config as profile,
+              agent.disabled_at as "disabledAt", agent.created_by_user_id as "ownerUserId",
+              owner.handle as "ownerHandle",
+              ($2::bigint is not null and exists (
+                select 1 from project_member member
+                 where member.project_id = $2 and member.user_id = agent.row_id
+              )) as "inProject"
+         from forum_user agent
+         left join forum_user owner on owner.row_id = agent.created_by_user_id
+        where agent.kind = 'agent'
+          and ($1::boolean or agent.created_by_user_id = $3 or (
+            $2::bigint is not null and exists (
+              select 1 from project_member member
+               where member.project_id = $2 and member.user_id = agent.row_id
+            )
+          ))
+        order by lower(agent.handle)`,
+      [actor.isOwner, projectId, actor.id],
     );
     return context.json({
-      agents: result.rows.map((row) => ({
-        ...row,
-        profile: row.profile === null ? null : parseAgentProfile(row.profile),
-      })),
+      agents: result.rows.map((row) => {
+        const parsed = row.profile === null ? null : parseAgentProfile(row.profile);
+        const canManage = actor.isOwner || row.ownerUserId === actor.id;
+        return {
+          ...row,
+          profile: canManage ? parsed : null,
+          provider: parsed?.provider ?? null,
+          model: parsed?.model ?? null,
+          thinkingLevel: parsed?.thinkingLevel ?? null,
+          canManage,
+        };
+      }),
     });
   });
 
@@ -129,7 +164,6 @@ export function createAgentProfileRoutes(database: AppDatabase) {
     if (!hasExactBrowserOrigin(context)) return context.json({ error: "invalid_origin" }, 403);
     const actor = await readBrowserUser(context, database);
     if (!actor) return context.json({ error: "unauthenticated" }, 401);
-    if (!actor.isOwner) return context.json({ error: "owner_required" }, 403);
     const userId = positiveId(context.req.param("userId"));
     if (!userId) return context.json({ error: "invalid_id" }, 400);
     const input = agentProfileSchema.safeParse(await context.req.json().catch(() => null));
@@ -138,8 +172,9 @@ export function createAgentProfileRoutes(database: AppDatabase) {
       `update forum_user
           set agent_config = $1
         where row_id = $2 and kind = 'agent' and disabled_at is null
+          and ($3::boolean or created_by_user_id = $4)
       returning row_id as "userId", handle, agent_config as profile`,
-      [input.data, userId],
+      [input.data, userId, actor.isOwner, actor.id],
     );
     return result.rows[0]
       ? context.json({ agent: result.rows[0] })

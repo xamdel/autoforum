@@ -10,16 +10,17 @@ import type { ProjectSandboxIdentity } from "../sandbox/lifecycle.ts";
 async function authorizedProject(
   context: Context,
   database: AppDatabase,
-): Promise<ProjectSandboxIdentity | "unauthenticated" | "owner_required" | "project_not_found"> {
+): Promise<ProjectSandboxIdentity | "unauthenticated" | "project_not_found"> {
   const actor = await readBrowserUser(context, database);
   if (!actor) return "unauthenticated";
-  if (!actor.isOwner) return "owner_required";
   const projectId = Number(context.req.param("projectId"));
   if (!Number.isSafeInteger(projectId) || projectId < 1) return "project_not_found";
   const result = await database.pool.query<ProjectSandboxIdentity>(
     `select p.row_id as "projectId", p.public_id as "publicId"
-       from project p join project_member m on m.project_id = p.row_id
-      where p.row_id = $1 and m.user_id = $2`,
+      from project p join project_member m on m.project_id = p.row_id
+      join forum_user u on u.row_id = m.user_id
+      where p.row_id = $1 and m.user_id = $2 and u.disabled_at is null
+        and (u.is_owner or m.can_edit_workspace)`,
     [projectId, actor.id],
   );
   return result.rows[0] ?? "project_not_found";
@@ -28,9 +29,7 @@ async function authorizedProject(
 function authorizationResponse(context: Context, result: string) {
   return result === "unauthenticated"
     ? context.json({ error: result }, 401)
-    : result === "owner_required"
-      ? context.json({ error: result }, 403)
-      : context.json({ error: result }, 404);
+    : context.json({ error: result }, 404);
 }
 
 function workspaceFailure(context: Context, error: unknown) {

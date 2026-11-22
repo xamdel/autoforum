@@ -4,8 +4,8 @@
 //   #/<project>/agents              the first agent        #/<project>/agents/<agent's user id>
 //   #/<project>/agents/new          a new agent            #/<project>/agents/access | scribe | activity
 //
-// The page itself does not scroll; a pane scrolls on its own only when it has more than fits. Only the
-// installation's owner can change any of it.
+// The page itself does not scroll; a pane scrolls on its own only when it has more than fits. People manage
+// agents they created; the installation owner also manages project membership and shared model access.
 
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 
@@ -19,7 +19,7 @@ import { ModelForm, useScribeModelDefault } from "../chrome/ScribeChat.tsx";
 import { stopTurn, TurnLine, TurnThread, turnTokens } from "../chrome/AgentsNav.tsx";
 import { ModelPicker } from "../components/ModelPicker.tsx";
 import {
-  Avatar, Badge, ConfirmButton, copyText, Dots, Empty, Failure, flash, flashFailure, icons, Loading, Time, Timer, Who,
+  Avatar, Badge, ConfirmButton, copyText, Dots, Empty, Failure, flash, flashFailure, icons, Loading, Time, Timer,
 } from "../components/ui.tsx";
 import { useProject } from "../state/project.tsx";
 import { isActiveTurn, keys, useAgents, useChatgptAccess, useClaudeCodeAccess, useCredentials, useModelApiKeys, useTurns } from "../state/queries.ts";
@@ -115,7 +115,7 @@ function AgentPane({ agent }: { agent: AgentRecord }) {
   ].filter(Boolean))].sort();
   const set = (patch: Partial<AgentProfile>) => setProfile({ ...profile, ...patch });
   const put = (next: AgentProfile) => api(`/agents/${agent.userId}/profile`, { method: "PUT", json: next }).then(() => {
-    invalidate(keys.agents);
+    invalidate(keys.agents(projectId));
     invalidate(keys.projects);
   });
 
@@ -166,7 +166,7 @@ function AgentPane({ agent }: { agent: AgentRecord }) {
             {dirty && saved ? <button type="button" className="link small" onClick={() => setProfile(saved)}>Revert</button> : null}
             <ConfirmButton label="Disable this agent" confirm="Click again: this cannot be undone" className="link danger-link push" onConfirm={() => {
               api(`/users/${agent.userId}/disable`, { method: "POST" }).then(() => {
-                invalidate(keys.agents);
+                invalidate(keys.agents(projectId));
                 invalidate(keys.users);
                 invalidate(keys.projects);
                 invalidate("p");
@@ -182,8 +182,29 @@ function AgentPane({ agent }: { agent: AgentRecord }) {
   );
 }
 
-function NewAgent({ first }: { first: boolean }) {
+function AgentSummaryPane({ agent }: { agent: AgentRecord }) {
   const { projectId } = useProject();
+  const turns = useTurns(projectId, true);
+  const working = (turns.data ?? []).some((turn) => turn.status === "running" && turn.agent === agent.handle);
+  return (
+    <div className="agent-pane">
+      <PaneHeader
+        before={<Avatar handle={agent.handle} working={working} />}
+        title={<span className="handle">@{agent.handle}{working ? <Badge tone="busy">working</Badge> : null}</span>}
+        lede={agent.provider && agent.model
+          ? <>Answers as <code>{agent.provider}/{agent.model}</code>{agent.thinkingLevel && agent.thinkingLevel !== "off" ? ` · thinking ${agent.thinkingLevel}` : ""}</>
+          : "Takes part from an external MCP client."}
+      />
+      <div className="card">
+        <p>This agent is managed by <b>@{agent.ownerHandle ?? "the installation owner"}</b>.</p>
+        <p className="muted small">It is installed in this project, so any project member can mention <b>@{agent.handle}</b> to invite a reply within the thread and project allowances.</p>
+      </div>
+    </div>
+  );
+}
+
+function NewAgent({ first }: { first: boolean }) {
+  const { projectId, isOwner } = useProject();
   const [handle, setHandle] = useState("");
   const [busy, setBusy] = useState(false);
   const submit = (event: FormEvent) => {
@@ -191,10 +212,11 @@ function NewAgent({ first }: { first: boolean }) {
     setBusy(true);
     api<{ user: User }>("/users", { method: "POST", json: { kind: "agent", handle } })
       .then(async ({ user }) => {
-        await api(`/projects/${projectId}/members`, { method: "POST", json: { userId: user.id } });
-        invalidate(keys.agents);
+        if (isOwner) await api(`/projects/${projectId}/members`, { method: "POST", json: { userId: user.id } });
+        invalidate(keys.agents(projectId));
         invalidate(keys.users);
         invalidate(keys.members(projectId));
+        if (!isOwner) flash(`@${user.handle} created. The installation owner can now add it to this project.`, "ok");
         navigate(path(projectId, "agents", user.id));
       })
       .catch(flashFailure)
@@ -212,7 +234,7 @@ function NewAgent({ first }: { first: boolean }) {
         </label>
         <div className="row">
           <button type="submit" className="primary" disabled={busy || !handle}>Create agent</button>
-          <span className="muted small">Next: give it a model and a system prompt.</span>
+          <span className="muted small">Next: give it a model and a system prompt.{isOwner ? " It will join this project now." : " The installation owner chooses which projects it joins."}</span>
         </div>
       </form>
     </>
@@ -414,18 +436,17 @@ const SETTINGS: Array<[section: string, label: string, icon: ReactNode]> = [
 ];
 
 /** Why an agent is or is not answering here, in a few words. */
-function standing(agent: AgentRecord, member: boolean): string {
-  if (!member) return "not in this project";
-  if (!agent.profile) return "external · MCP only";
-  return `${agent.profile.provider}/${agent.profile.model}`;
+function standing(agent: AgentRecord): string {
+  if (!agent.inProject) return "yours · not in this project";
+  if (!agent.provider || !agent.model) return "external · MCP only";
+  return `${agent.provider}/${agent.model}`;
 }
 
 function Nav({ agents, current }: { agents: AgentRecord[]; current: string }) {
-  const { projectId, members } = useProject();
+  const { projectId, isOwner } = useProject();
   const turns = useTurns(projectId, true);
   const working = new Set((turns.data ?? []).filter((turn) => turn.status === "running").map((turn) => turn.agent));
   const active = (turns.data ?? []).filter(isActiveTurn).length;
-  const memberIds = new Set(members.map((member) => member.id));
   const item = (section: string) => ({
     href: link(projectId, "agents", section),
     "aria-current": current === section ? "page" as const : undefined,
@@ -433,62 +454,50 @@ function Nav({ agents, current }: { agents: AgentRecord[]; current: string }) {
   return (
     <nav className="settings-nav" aria-label="Agents and their settings">
       <div className="settings-title">Agents</div>
-      <div className="settings-group">Forum agents</div>
-      {agents.map((agent) => {
-        const member = memberIds.has(agent.userId);
-        return (
-          <a key={agent.userId} className={`settings-item ${member && agent.profile ? "" : "quiet"}`} {...item(String(agent.userId))}>
+      <div className="settings-group">Forum agents and yours</div>
+      {agents.map((agent) => (
+          <a key={agent.userId} className={`settings-item ${agent.inProject ? "" : "quiet"}`} {...item(String(agent.userId))}>
             <Avatar handle={agent.handle} size="small" working={working.has(agent.handle)} />
-            <span className="settings-item-text"><b>@{agent.handle}</b><span>{standing(agent, member)}</span></span>
+            <span className="settings-item-text"><b>@{agent.handle}</b><span>{standing(agent)}</span></span>
           </a>
-        );
-      })}
-      <a className="settings-item add" {...item("new")}><span className="settings-icon">{icons.plus}</span> New agent</a>
-      <div className="settings-group">Settings</div>
-      {SETTINGS.map(([section, label, icon]) => (
-        <a key={section} className="settings-item" {...item(section)}>
-          <span className="settings-icon">{icon}</span> {label}
-          {section === "activity" && active ? <span className="count-badge push" title={`${plural(active, "turn")} queued or running`}>{active}</span> : null}
-        </a>
       ))}
+      <a className="settings-item add" {...item("new")}><span className="settings-icon">{icons.plus}</span> New agent</a>
+      {isOwner ? <>
+        <div className="settings-group">Installation settings</div>
+        {SETTINGS.map(([section, label, icon]) => (
+          <a key={section} className="settings-item" {...item(section)}>
+            <span className="settings-icon">{icon}</span> {label}
+            {section === "activity" && active ? <span className="count-badge push" title={`${plural(active, "turn")} queued or running`}>{active}</span> : null}
+          </a>
+        ))}
+      </> : null}
     </nav>
   );
 }
 
 export default function Agents() {
-  const { isOwner, members } = useProject();
+  const { projectId, isOwner } = useProject();
   const route = useRoute();
-  const agents = useAgents(isOwner);
+  const agents = useAgents(projectId, true);
   useScribeModelDefault(agents.data, isOwner);
 
-  if (!isOwner) {
-    const here = members.filter((member) => member.kind === "agent");
-    // Nothing to configure, so no list and pane: an ordinary page (main.tsx fills the window only for the owner).
-    return (
-      <div className="settings-page">
-        <h1>Agents</h1>
-        <p className="muted lede">Agents are forum members like anyone else. Mention one in a post to invite a reply while that thread and this project have allowance remaining; only the owner configures their models and prompts.</p>
-        {here.length ? (
-          <ul className="member-roll large">{here.map((agent) => <li key={agent.id}><Avatar handle={agent.handle} /> <Who handle={agent.handle} kind="agent" /></li>)}</ul>
-        ) : <Empty>No agents take part in this project yet.</Empty>}
-      </div>
-    );
-  }
-
-  const live = (agents.data ?? []).filter((agent) => !agent.disabledAt);
+  const live = (agents.data ?? []).filter((agent) => !agent.disabledAt)
+    .sort((left, right) => Number(right.inProject) - Number(left.inProject) || left.handle.localeCompare(right.handle));
   const section = route.segments[2];
   const chosen = section === undefined ? live[0] : live.find((agent) => String(agent.userId) === section);
   let current = section ?? "";
   let pane: ReactNode;
-  if (section === "access") pane = <ModelAccess />;
-  else if (section === "scribe") pane = <ScribeSettings agents={live} />;
-  else if (section === "activity") pane = <Activity />;
+  if (section === "access" && isOwner) pane = <ModelAccess />;
+  else if (section === "scribe" && isOwner) pane = <ScribeSettings agents={live} />;
+  else if (section === "activity" && isOwner) pane = <Activity />;
   else if (section === "new") pane = <NewAgent first={false} />;
   else if (agents.error && !agents.data) pane = <Failure error={agents.error} />;
   else if (!agents.data) pane = <Loading />;
   else if (chosen) {
     current = String(chosen.userId);
-    pane = <AgentPane key={chosen.userId} agent={chosen} />;
+    pane = chosen.canManage
+      ? <AgentPane key={chosen.userId} agent={chosen} />
+      : <AgentSummaryPane key={chosen.userId} agent={chosen} />;
   } else if (section === undefined) {
     current = "new";
     pane = <NewAgent first />;

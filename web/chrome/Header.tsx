@@ -28,9 +28,8 @@ export const BrandMark = ({ className = "brand-mark" }: { className?: string }) 
 
 /** Beside "Workspace": green while the sandbox runs, pulsing while the Scribe is working. */
 function SandboxDot({ scribeBusy }: { scribeBusy: boolean }) {
-  const { projectId, isOwner } = useProject();
-  const sandbox = useSandbox(projectId, isOwner, scribeBusy);
-  if (!isOwner) return null;
+  const { projectId } = useProject();
+  const sandbox = useSandbox(projectId, true, scribeBusy);
   const state = sandbox.data?.state ?? "unknown";
   const title = sandbox.data ? `The sandbox is ${state === "absent" ? "not created yet" : state}${scribeBusy ? "; the Scribe is working" : ""}` : "The sandbox's state is unknown";
   return <i className={`nav-dot ${state} ${scribeBusy ? "busy" : ""}`} title={title} />;
@@ -134,11 +133,9 @@ export function Header({ page, context }: { page: string; context: DockContext }
       <nav aria-label="Main">
         <a href={link(projectId, "forum")} className={forum ? "active" : ""} title="Threads and search">Forum</a>
         <a href={link(projectId, "library")} className={page === "library" ? "active" : ""} title="Sources and their excerpts">Library</a>
-        {isOwner ? (
-          <a href={link(projectId, "workspace")} className={page === "workspace" ? "active" : ""} title="The project's sandbox: workspace pages, files, and reusable modules">
-            Workspace<SandboxDot scribeBusy={scribeBusy} />
-          </a>
-        ) : null}
+        <a href={link(projectId, "workspace")} className={page === "workspace" ? "active" : ""} title="The project's interactive workspace pages">
+          Workspace<SandboxDot scribeBusy={scribeBusy} />
+        </a>
         <AgentsNav active={page === "agents"} />
       </nav>
       <form

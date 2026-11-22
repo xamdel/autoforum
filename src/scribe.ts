@@ -80,7 +80,7 @@ function catalogLines(entries: WorkspaceCatalog["pages"]): string[] {
   return entries.map((entry) => `- ${entry.name} — ${entry.description ?? "description missing"}`);
 }
 
-/** Renders the small host-generated workspace index supplied with every owner Scribe turn. */
+/** Renders the small host-generated workspace index supplied with every workspace-enabled Scribe turn. */
 export function renderWorkspaceCatalog(catalog: WorkspaceCatalog | null): string {
   if (!catalog) {
     return `# Project workspace catalog
@@ -147,7 +147,7 @@ export function scribeSystemPrompt(workspaceAccess = true): string {
     : buildMemberScribeSystemPrompt();
 }
 
-/** Runs one private Scribe reply; only the installation owner receives workspace tools. */
+/** Runs one private Scribe reply; workspace tools are granted only by project membership settings. */
 export async function runScribe(
   database: AppDatabase,
   agentLog: AgentLog,

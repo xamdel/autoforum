@@ -79,10 +79,12 @@ export function createUserRoutes(database: AppDatabase) {
     if (!actor) return context.json({ error: "unauthenticated" }, 401);
     if (!actor.isOwner) return context.json({ error: "owner_required" }, 403);
     const result = await database.pool.query(
-      `select row_id as id, kind, handle, is_owner as "isOwner",
-              disabled_at as "disabledAt", created_at as "createdAt"
-         from forum_user
-        order by lower(handle)`,
+      `select account.row_id as id, account.kind, account.handle, account.is_owner as "isOwner",
+              account.disabled_at as "disabledAt", account.created_at as "createdAt",
+              account.created_by_user_id as "ownerUserId", creator.handle as "ownerHandle"
+         from forum_user account
+         left join forum_user creator on creator.row_id = account.created_by_user_id
+        order by lower(account.handle)`,
     );
     return context.json({ users: result.rows });
   });
@@ -91,9 +93,9 @@ export function createUserRoutes(database: AppDatabase) {
     if (!hasExactBrowserOrigin(context)) return context.json({ error: "invalid_origin" }, 403);
     const actor = await readBrowserUser(context, database);
     if (!actor) return context.json({ error: "unauthenticated" }, 401);
-    if (!actor.isOwner) return context.json({ error: "owner_required" }, 403);
     const input = createUserInput.safeParse(await context.req.json().catch(() => null));
     if (!input.success) return context.json({ error: "invalid_input" }, 400);
+    if (!actor.isOwner && input.data.kind !== "agent") return context.json({ error: "owner_required" }, 403);
 
     try {
       const result = await database.pool.query(
@@ -114,7 +116,6 @@ export function createUserRoutes(database: AppDatabase) {
     if (!hasExactBrowserOrigin(context)) return context.json({ error: "invalid_origin" }, 403);
     const actor = await readBrowserUser(context, database);
     if (!actor) return context.json({ error: "unauthenticated" }, 401);
-    if (!actor.isOwner) return context.json({ error: "owner_required" }, 403);
     const userId = idFrom(context.req.param("id"));
     if (!userId) return context.json({ error: "invalid_id" }, 400);
 
@@ -125,8 +126,9 @@ export function createUserRoutes(database: AppDatabase) {
         `update forum_user
             set disabled_at = coalesce(disabled_at, now())
           where row_id = $1 and is_owner = false
+            and ($2::boolean or (kind = 'agent' and created_by_user_id = $3))
         returning row_id`,
-        [userId],
+        [userId, actor.isOwner, actor.id],
       );
       if (!disabled.rows[0]) {
         await client.query("rollback");

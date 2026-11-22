@@ -47,7 +47,6 @@ export function createModelCatalogRoutes(database: AppDatabase) {
   routes.get("/:provider", async (context) => {
     const actor = await readBrowserUser(context, database);
     if (!actor) return context.json({ error: "unauthenticated" }, 401);
-    if (!actor.isOwner) return context.json({ error: "owner_required" }, 403);
 
     const provider = providerIdSchema.safeParse(context.req.param("provider"));
     if (!provider.success) return context.json({ error: "invalid_input" }, 400);

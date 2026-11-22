@@ -156,16 +156,16 @@ function AnchorBar({ projectId, address, onClear }: { projectId: number; address
   );
 }
 
-function suggestionsFor(page: string | undefined, anchor: string | null): string[] {
+function suggestionsFor(page: string | undefined, anchor: string | null, workspaceAccess: boolean): string[] {
   if (anchor) return [`Summarize the discussion in [[${anchor}]] so far.`, `Which claims in [[${anchor}]] still lack evidence?`, `Draft a reply for [[${anchor}]] that `];
-  if (page === "workspace") return ["What is in the workspace right now?", "Build a workspace page that ", "Run the project's tests and tell me what fails."];
+  if (page === "workspace" && workspaceAccess) return ["What is in the workspace right now?", "Build a workspace page that ", "Run the project's tests and tell me what fails."];
   return ["What has this project been discussing lately?", "Find what the forum says about ", "Draft a new thread about "];
 }
 
 // ---------------------------------------------------------------------------------------------- one conversation
 
 function ConversationView({ selected, conversation, agents }: { selected: number | "new"; conversation: Conversation | undefined; agents: AgentRecord[] }) {
-  const { projectId, project, isOwner } = useProject();
+  const { projectId, project, isOwner, canEditWorkspace } = useProject();
   const route = useRoute();
   const state = chat.use();
   const ownerModel = scribeModel.use();
@@ -181,7 +181,7 @@ function ConversationView({ selected, conversation, agents }: { selected: number
   const pending = conversation ? state.pending[conversation.id] : undefined;
   const running = Boolean(pending) || conversation?.status === "running";
   const failure = conversation ? state.failures[conversation.id] : undefined;
-  const sandbox = useSandbox(projectId, isOwner, running);
+  const sandbox = useSandbox(projectId, canEditWorkspace, running);
   const anchor = conversation ? conversation.anchor : state.anchors[projectId] ?? null;
   const log = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
@@ -247,7 +247,7 @@ function ConversationView({ selected, conversation, agents }: { selected: number
 
   // The thread being read (or the last one read) is where "Use as reply" puts a draft.
   const replyTarget = recentThread(projectId);
-  const stopped = isOwner && sandbox.data && sandbox.data.state !== "running";
+  const stopped = canEditWorkspace && sandbox.data && sandbox.data.state !== "running";
 
   return (
     <div className="chat">
@@ -264,11 +264,11 @@ function ConversationView({ selected, conversation, agents }: { selected: number
           <div className="chat-intro">
             <span className="chat-intro-mark">{icons.quill}</span>
             <h3>Ask the Scribe</h3>
-            <p>{isOwner
+            <p>{canEditWorkspace
               ? "It reads this project's forum and sources, drafts posts for you to publish, and builds and runs things in the project sandbox. This conversation is private to you."
               : "It reads this project's forum and sources, researches the web, and drafts posts for you to publish. This conversation is private to you; it cannot access the shared sandbox."}</p>
             <div className="chat-starters">
-              {suggestionsFor(route.segments[1], anchor).map((starter) => (
+              {suggestionsFor(route.segments[1], anchor, canEditWorkspace).map((starter) => (
                 <button type="button" key={starter} onClick={() => (write(starter), input.current?.focus())}>{starter.trimEnd()}{starter.endsWith(" ") ? "…" : ""}</button>
               ))}
             </div>
@@ -313,7 +313,7 @@ function ConversationView({ selected, conversation, agents }: { selected: number
           {sandbox.data?.imageAvailable === false
             ? <span>The sandbox image is not built yet (<code>npm run sandbox:build</code>), so the Scribe cannot use the workspace.</span>
             : <span>The sandbox is not running, so the Scribe cannot use the workspace.</span>}
-          {sandbox.data?.imageAvailable !== false ? (
+          {isOwner && sandbox.data?.imageAvailable !== false ? (
             <button
               type="button"
               className="link"
@@ -337,7 +337,7 @@ function ConversationView({ selected, conversation, agents }: { selected: number
           rows={1}
           value={text}
           onValue={write}
-          placeholder={running ? "The Scribe is replying. Write your next message…" : list.length ? "Reply to the Scribe…" : isOwner ? "Ask about the forum, or for something built in the sandbox…" : "Ask about the forum, a source, or a draft…"}
+          placeholder={running ? "The Scribe is replying. Write your next message…" : list.length ? "Reply to the Scribe…" : canEditWorkspace ? "Ask about the forum, or for something built in the sandbox…" : "Ask about the forum, a source, or a draft…"}
           aria-label="Message the Scribe"
           onKeyDown={(event) => {
             if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
@@ -391,7 +391,7 @@ export function useScribeModelDefault(agents: AgentRecord[] | undefined, enabled
 export function ScribeChat() {
   const { projectId, isOwner } = useProject();
   const conversations = useConversations(projectId, true);
-  const agents = useAgents(isOwner);
+  const agents = useAgents(projectId, isOwner);
   const state = chat.use();
   const list = conversations.data;
 

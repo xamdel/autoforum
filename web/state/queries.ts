@@ -13,7 +13,7 @@ import { useQuery } from "../lib/query.ts";
 export const keys = {
   projects: "projects",
   users: "users",
-  agents: "agents",
+  agents: (projectId: number) => `p${projectId}/agents`,
   agentRunner: "agent-runner",
   sessions: "sessions",
   chatgptAccess: "model-access/chatgpt",
@@ -112,8 +112,8 @@ export const useSearch = (id: number, query: string) =>
   useQuery(query ? keys.search(id, query) : null, () =>
     api<{ results: SearchHit[] }>(`/projects/${id}/search?q=${encodeURIComponent(query)}`).then((result) => result.results));
 
-export const useAgents = (enabled: boolean) =>
-  useQuery(enabled ? keys.agents : null, () => api<{ agents: AgentRecord[] }>("/agents").then((result) => result.agents));
+export const useAgents = (projectId: number, enabled: boolean) =>
+  useQuery(enabled ? keys.agents(projectId) : null, () => api<{ agents: AgentRecord[] }>(`/agents?projectId=${projectId}`).then((result) => result.agents));
 
 export const useAgentRunner = (enabled: boolean) =>
   useQuery(enabled ? keys.agentRunner : null, () => api<AgentRunnerStatus>("/agent-runner"));

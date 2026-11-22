@@ -479,10 +479,14 @@ export async function resetProjectSandbox(project: ProjectSandboxIdentity) {
   }
 }
 
-async function authorizedProject(context: Context, database: AppDatabase): Promise<ProjectSandboxIdentity | "unauthenticated" | "owner_required" | "project_not_found"> {
+async function authorizedProject(
+  context: Context,
+  database: AppDatabase,
+  requireOwner = true,
+): Promise<ProjectSandboxIdentity | "unauthenticated" | "owner_required" | "project_not_found"> {
   const actor = await readBrowserUser(context, database);
   if (!actor) return "unauthenticated";
-  if (!actor.isOwner) return "owner_required";
+  if (requireOwner && !actor.isOwner) return "owner_required";
   const projectId = Number(context.req.param("projectId"));
   if (!Number.isSafeInteger(projectId) || projectId < 1) return "project_not_found";
   const result = await database.pool.query<{ projectId: number; publicId: string }>(
@@ -515,7 +519,7 @@ export function createSandboxLifecycleRoutes(database: AppDatabase, options: {
   const routes = new Hono();
 
   routes.get("/projects/:projectId/sandbox", async (context) => {
-    const project = await authorizedProject(context, database);
+    const project = await authorizedProject(context, database, false);
     if (typeof project === "string") return authorizationResponse(context, project);
     try { return context.json(await projectSandboxStatus(project)); }
     catch (error) { return engineFailure(context, error); }
