@@ -10,7 +10,9 @@ coverage/
 .spike-data/
 .autoforum/
 backups/
-docs/
+docs/*
+!docs/member-guide/
+!docs/member-guide/*.md
 *.log
 .DS_Store
 Thumbs.db
