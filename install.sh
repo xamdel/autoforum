@@ -53,4 +53,4 @@ echo "Installing Autoforum dependencies..."
 npx --yes pnpm@12.5.1 install --frozen-lockfile
 
 echo "Preparing Autoforum..."
-npx --yes pnpm@12.5.1 run setup -- --managed "$owner_handle"
+node --experimental-strip-types --env-file-if-exists=.env scripts/setup.ts --managed "$owner_handle"

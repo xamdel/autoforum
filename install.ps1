@@ -15,5 +15,5 @@ if ($LASTEXITCODE -ne 0) {
 
 & npx --yes pnpm@12.5.1 install --frozen-lockfile
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-& npx --yes pnpm@12.5.1 run setup -- --managed $OwnerHandle
+& node --experimental-strip-types --env-file-if-exists=.env scripts/setup.ts --managed $OwnerHandle
 exit $LASTEXITCODE
