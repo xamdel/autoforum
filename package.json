@@ -12,6 +12,7 @@
     "setup": "node --experimental-strip-types --env-file-if-exists=.env scripts/setup.ts",
     "doctor": "node --experimental-strip-types --env-file-if-exists=.env scripts/doctor.ts",
     "start": "node --experimental-strip-types --env-file-if-exists=.env scripts/start.ts",
+    "serve": "node --experimental-strip-types --env-file-if-exists=.env scripts/serve.ts",
     "share": "node --experimental-strip-types --env-file-if-exists=.env scripts/share.ts",
     "build": "vite build",
     "typecheck": "tsc --noEmit",

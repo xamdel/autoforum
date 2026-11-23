@@ -1,0 +1,16 @@
+[Unit]
+Description=Autoforum
+Wants=network-online.target podman.socket
+After=network-online.target podman.socket
+
+[Service]
+Type=simple
+WorkingDirectory=%h/autoforum
+ExecStart=/usr/bin/node --experimental-strip-types --env-file-if-exists=.env scripts/serve.ts
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=90s
+UMask=0077
+
+[Install]
+WantedBy=default.target

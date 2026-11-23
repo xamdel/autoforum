@@ -76,6 +76,8 @@ This starts Autoforum and a temporary Cloudflare Quick Tunnel, then prints local
 
 Quick Tunnels are a demo facility, not a permanent deployment. Their hostname changes on each run, and the single temporary hostname cannot carry Autoforum's isolated artifact-preview subdomains. Use the local address for workspace and artifact demonstrations.
 
+For a persistent Linux VPS, follow the [deployment runbook](deploy/README.md). It keeps Autoforum and its rootless Podman sandboxes under one unprivileged account and uses separate wildcard preview origins over HTTPS.
+
 ## Model and service credentials
 
 Model access is configured from the **Agents** page. Saved API keys live only in ignored files under `.autoforum/`; responses never send them back to the browser. ChatGPT and Claude subscription logins use their respective host-side authentication rather than exposing subscription credentials to sandboxes.
