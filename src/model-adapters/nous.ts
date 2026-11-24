@@ -29,6 +29,9 @@ interface NousCatalogModel {
   };
 }
 
+type NousCatalogLoader = (signal: AbortSignal) => Promise<Model<"openai-completions">[]>;
+const catalogs = new WeakMap<ModelRuntime, { models: Model<"openai-completions">[]; load: NousCatalogLoader }>();
+
 function thinkingLevelMap(entry: NousCatalogModel): ThinkingLevelMap | undefined {
   const efforts = entry.reasoning?.supported_efforts;
   if (!efforts?.length) return undefined;
@@ -69,18 +72,6 @@ export function nousCatalogModel(entry: NousCatalogModel): Model<"openai-complet
   };
 }
 
-function fallbackModels(runtime: ModelRuntime): Model<"openai-completions">[] {
-  return (runtime.getProvider("openrouter")?.getModels() ?? []).map((source) => {
-    const { compat: _compat, headers: _headers, api: _api, provider: _provider, baseUrl: _baseUrl, ...model } = source;
-    return {
-      ...model,
-      api: "openai-completions" as const,
-      provider: "nous",
-      baseUrl: NOUS_INFERENCE_BASE_URL,
-    };
-  });
-}
-
 async function fetchNousModels(signal: AbortSignal): Promise<Model<"openai-completions">[]> {
   const response = await fetch(`${NOUS_INFERENCE_BASE_URL}/models`, {
     headers: { accept: "application/json" },
@@ -100,27 +91,25 @@ async function fetchNousModels(signal: AbortSignal): Promise<Model<"openai-compl
   return models;
 }
 
-/** Register Nous Portal with an offline fallback, then let Pi persist newer public catalog data. */
-export function registerNousProvider(runtime: ModelRuntime): void {
+/** Nous publishes its own catalog; borrowing another provider's list would leave removed models behind. */
+export function registerNousProvider(runtime: ModelRuntime, load: NousCatalogLoader = fetchNousModels): void {
+  const models: Model<"openai-completions">[] = [];
+  catalogs.set(runtime, { models, load });
   runtime.registerNativeProvider(createProvider({
     id: "nous",
     name: "Nous Portal",
     baseUrl: NOUS_INFERENCE_BASE_URL,
     auth: { apiKey: envApiKeyAuth("Nous Portal API key", ["NOUS_API_KEY"]) },
-    models: fallbackModels(runtime),
-    fetchModels: ({ allowNetwork, signal }) => allowNetwork ? fetchNousModels(signal) : Promise.resolve([]),
+    models,
     api: openAICompletionsApi(),
   }));
 }
 
-/** Best-effort refresh: the provider keeps its broad built-in fallback if Nous is unreachable. */
+/** Replace Nous's dynamic catalog with the provider's current chat models. */
 export async function refreshNousCatalog(runtime: ModelRuntime): Promise<void> {
-  const result = await runtime.refresh({
-    providers: ["nous"],
-    allowNetwork: true,
-    force: true,
-    signal: AbortSignal.timeout(15_000),
-  });
-  const error = result.errors.get("nous");
-  if (error) throw error;
+  const catalog = catalogs.get(runtime);
+  if (!catalog) throw new Error("nous_provider_not_registered");
+  const models = await catalog.load(AbortSignal.timeout(15_000));
+  catalog.models.splice(0, catalog.models.length, ...models);
+  await runtime.refresh({ providers: ["nous"], allowNetwork: false });
 }

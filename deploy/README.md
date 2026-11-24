@@ -118,13 +118,11 @@ journalctl --user --unit autoforum.service --since today
 Deploy an update:
 
 ```sh
-systemctl --user stop autoforum.service
-git pull --ff-only
-npx --yes pnpm@12.5.1 install --frozen-lockfile
-npm run build
-npm run sandbox:build
-systemctl --user start autoforum.service
+cd /home/autoforum/autoforum
+sh deploy/update.sh
 ```
+
+The update script refuses to overwrite tracked local changes, stops the service, fast-forwards the repository, installs the locked dependencies, rebuilds the web client and sandbox image, starts the service, and checks its local health endpoint. If an intermediate step fails, it attempts to start the service again and leaves the failed command visible for diagnosis.
 
 Database migrations run automatically at application startup. Rebuilding the sandbox image does not modify existing workspace volumes.
 

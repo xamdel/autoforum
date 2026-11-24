@@ -75,10 +75,10 @@ export function piModelRuntime(): Promise<ModelRuntime> {
     modelsPath: null,
     refreshOnCreate: false,
     allowModelNetwork: false,
-  }).then((created) => {
+  }).then(async (created) => {
     registerChatgptProvider(created);
     registerNousProvider(created);
-    if (created.hasConfiguredAuth("nous")) void refreshNousCatalog(created).catch(() => undefined);
+    if (created.hasConfiguredAuth("nous")) await refreshNousCatalog(created).catch(() => undefined);
     return created;
   });
   return runtime;
@@ -147,7 +147,7 @@ export async function saveModelApiKey(models: ModelRuntime, providerId: string, 
     notify() {},
   });
   if (!prompted) throw new Error("model_api_key_provider_requires_additional_setup");
-  if (providerId === "nous") void refreshNousCatalog(models).catch(() => undefined);
+  if (providerId === "nous") await refreshNousCatalog(models).catch(() => undefined);
 }
 
 export async function removeModelApiKey(models: ModelRuntime, providerId: string): Promise<void> {

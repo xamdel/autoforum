@@ -266,6 +266,7 @@ function ModelAccess() {
     api(`/model-access/api-keys/${encodeURIComponent(apiProvider)}`, { method: "PUT", json: { key: apiKey.trim() } }).then(() => {
       setApiKey("");
       invalidate(keys.modelApiKeys);
+      invalidate(keys.modelCatalog(apiProvider));
       flash("API key saved", "ok");
     }, flashFailure).finally(() => setSavingKey(false));
   };
@@ -325,6 +326,7 @@ function ModelAccess() {
                     <ConfirmButton label="Remove" confirm="Click again to remove" className="link danger-link push" onConfirm={() => {
                       api(`/model-access/api-keys/${encodeURIComponent(provider.id)}`, { method: "DELETE" }).then(() => {
                         invalidate(keys.modelApiKeys);
+                        invalidate(keys.modelCatalog(provider.id));
                         flash(`${provider.name} key removed`, "ok");
                       }, flashFailure);
                     }} />

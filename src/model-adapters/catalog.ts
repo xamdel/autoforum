@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { readBrowserUser } from "../auth/browser.ts";
 import type { AppDatabase } from "../db.ts";
+import { refreshNousCatalog } from "./nous.ts";
 import { piModelRuntime } from "./pi.ts";
 
 const providerIdSchema = z.string().regex(/^[a-z0-9][a-z0-9._-]{0,63}$/);
@@ -50,7 +51,9 @@ export function createModelCatalogRoutes(database: AppDatabase) {
 
     const provider = providerIdSchema.safeParse(context.req.param("provider"));
     if (!provider.success) return context.json({ error: "invalid_input" }, 400);
-    const models = listCatalogModels(await piModelRuntime(), provider.data);
+    const runtime = await piModelRuntime();
+    if (provider.data === "nous") await refreshNousCatalog(runtime).catch(() => undefined);
+    const models = listCatalogModels(runtime, provider.data);
     return models ? context.json({ models }) : context.json({ error: "model_provider_not_found" }, 404);
   });
 

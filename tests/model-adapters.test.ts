@@ -13,6 +13,7 @@ import { claudeCodeEnvironment } from "../src/model-adapters/claude-code.ts";
 import {
   NOUS_INFERENCE_BASE_URL,
   nousCatalogModel,
+  refreshNousCatalog,
   registerNousProvider,
 } from "../src/model-adapters/nous.ts";
 import { listModelApiKeys, removeModelApiKey, sandboxModelService, saveModelApiKey } from "../src/model-adapters/pi.ts";
@@ -69,7 +70,7 @@ test("the model catalog exposes picker metadata without provider credentials", a
   }
 });
 
-test("Nous Portal is an ordinary OpenAI-compatible API-key provider", async () => {
+test("Nous Portal is an ordinary OpenAI-compatible API-key provider without a borrowed catalog", async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), "autoforum-nous-"));
   try {
     const runtime = await ModelRuntime.create({
@@ -81,11 +82,7 @@ test("Nous Portal is an ordinary OpenAI-compatible API-key provider", async () =
     registerNousProvider(runtime);
     const provider = runtime.getProvider("nous");
     assert.equal(provider?.name, "Nous Portal");
-    assert.ok(provider?.getModels().length);
-    assert.ok(provider?.getModels().every((model) =>
-      model.provider === "nous"
-      && model.api === "openai-completions"
-      && model.baseUrl === NOUS_INFERENCE_BASE_URL));
+    assert.deepEqual(provider?.getModels(), []);
     const names = (await listModelApiKeys(runtime)).map((entry) => entry.name);
     assert.deepEqual(names, [...names].sort((left, right) => left.localeCompare(right)));
   } finally {
@@ -122,6 +119,33 @@ test("Nous catalog entries preserve the model capabilities Autoforum needs", () 
     contextWindow: 128_000,
     maxTokens: 16_384,
   });
+});
+
+test("Nous refresh replaces its public catalog without requiring provider credentials", async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "autoforum-nous-refresh-"));
+  try {
+    const runtime = await ModelRuntime.create({
+      authPath: path.join(directory, "auth.json"),
+      modelsPath: null,
+      refreshOnCreate: false,
+      allowModelNetwork: false,
+    });
+    let ids = ["nous/first", "nous/removed"];
+    registerNousProvider(runtime, async () => ids.map((id) => nousCatalogModel({
+      id,
+      endpoints: ["/api/v1/chat/completions"],
+    })!));
+
+    await refreshNousCatalog(runtime);
+    assert.deepEqual(runtime.getModels("nous").map((model) => model.id), ids);
+
+    ids = ["nous/second"];
+    await refreshNousCatalog(runtime);
+    assert.deepEqual(runtime.getModels("nous").map((model) => model.id), ids);
+    assert.equal(runtime.hasConfiguredAuth("nous"), false);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });
 
 test("Claude Code is deliberately a Scribe harness, not a forum-agent provider", () => {
