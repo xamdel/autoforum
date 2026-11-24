@@ -13,10 +13,9 @@ import { claudeCodeEnvironment } from "../src/model-adapters/claude-code.ts";
 import {
   NOUS_INFERENCE_BASE_URL,
   nousCatalogModel,
-  refreshNousCatalog,
   registerNousProvider,
 } from "../src/model-adapters/nous.ts";
-import { listModelApiKeys, removeModelApiKey, sandboxModelService, saveModelApiKey } from "../src/model-adapters/pi.ts";
+import { listModelApiKeys, refreshModelCatalog, removeModelApiKey, sandboxModelService, saveModelApiKey } from "../src/model-adapters/pi.ts";
 
 test("Claude Code inherits the host login but not Autoforum's Anthropic API credentials", () => {
   const environment = claudeCodeEnvironment({
@@ -121,7 +120,7 @@ test("Nous catalog entries preserve the model capabilities Autoforum needs", () 
   });
 });
 
-test("Nous refresh replaces its public catalog without requiring provider credentials", async () => {
+test("a requested Nous refresh replaces its cached catalog", async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), "autoforum-nous-refresh-"));
   try {
     const runtime = await ModelRuntime.create({
@@ -136,13 +135,47 @@ test("Nous refresh replaces its public catalog without requiring provider creden
       endpoints: ["/api/v1/chat/completions"],
     })!));
 
-    await refreshNousCatalog(runtime);
+    await saveModelApiKey(runtime, "nous", "test-secret");
     assert.deepEqual(runtime.getModels("nous").map((model) => model.id), ids);
 
     ids = ["nous/second"];
-    await refreshNousCatalog(runtime);
+    await refreshModelCatalog(runtime, "nous");
     assert.deepEqual(runtime.getModels("nous").map((model) => model.id), ids);
-    assert.equal(runtime.hasConfiguredAuth("nous"), false);
+    assert.equal(runtime.hasConfiguredAuth("nous"), true);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("a refreshed catalog is restored locally after restart without another network fetch", async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "autoforum-nous-cache-"));
+  const authPath = path.join(directory, "auth.json");
+  const modelsPath = path.join(directory, "models.json");
+  const modelsStorePath = path.join(directory, "catalogs.json");
+  try {
+    const first = await ModelRuntime.create({
+      authPath,
+      modelsPath,
+      modelsStorePath,
+      refreshOnCreate: true,
+      allowModelNetwork: false,
+    });
+    registerNousProvider(first, async () => [nousCatalogModel({
+      id: "nous/cached",
+      endpoints: ["/api/v1/chat/completions"],
+    })!]);
+    await saveModelApiKey(first, "nous", "test-secret");
+
+    const second = await ModelRuntime.create({
+      authPath,
+      modelsPath,
+      modelsStorePath,
+      refreshOnCreate: true,
+      allowModelNetwork: false,
+    });
+    registerNousProvider(second, async () => { throw new Error("network_should_not_run"); });
+    await second.refresh({ providers: ["nous"], allowNetwork: false });
+    assert.deepEqual(second.getModels("nous").map((model) => model.id), ["nous/cached"]);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

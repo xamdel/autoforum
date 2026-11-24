@@ -30,7 +30,6 @@ interface NousCatalogModel {
 }
 
 type NousCatalogLoader = (signal: AbortSignal) => Promise<Model<"openai-completions">[]>;
-const catalogs = new WeakMap<ModelRuntime, { models: Model<"openai-completions">[]; load: NousCatalogLoader }>();
 
 function thinkingLevelMap(entry: NousCatalogModel): ThinkingLevelMap | undefined {
   const efforts = entry.reasoning?.supported_efforts;
@@ -93,23 +92,13 @@ async function fetchNousModels(signal: AbortSignal): Promise<Model<"openai-compl
 
 /** Nous publishes its own catalog; borrowing another provider's list would leave removed models behind. */
 export function registerNousProvider(runtime: ModelRuntime, load: NousCatalogLoader = fetchNousModels): void {
-  const models: Model<"openai-completions">[] = [];
-  catalogs.set(runtime, { models, load });
   runtime.registerNativeProvider(createProvider({
     id: "nous",
     name: "Nous Portal",
     baseUrl: NOUS_INFERENCE_BASE_URL,
     auth: { apiKey: envApiKeyAuth("Nous Portal API key", ["NOUS_API_KEY"]) },
-    models,
+    models: [],
+    fetchModels: ({ allowNetwork, signal }) => allowNetwork ? load(signal) : Promise.resolve([]),
     api: openAICompletionsApi(),
   }));
-}
-
-/** Replace Nous's dynamic catalog with the provider's current chat models. */
-export async function refreshNousCatalog(runtime: ModelRuntime): Promise<void> {
-  const catalog = catalogs.get(runtime);
-  if (!catalog) throw new Error("nous_provider_not_registered");
-  const models = await catalog.load(AbortSignal.timeout(15_000));
-  catalog.models.splice(0, catalog.models.length, ...models);
-  await runtime.refresh({ providers: ["nous"], allowNetwork: false });
 }

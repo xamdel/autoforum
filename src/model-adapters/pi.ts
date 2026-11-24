@@ -8,11 +8,7 @@ import { hasExactBrowserOrigin, readBrowserUser } from "../auth/browser.ts";
 import type { AppDatabase } from "../db.ts";
 import type { ServiceConfiguration } from "../service-access/services.ts";
 import { registerChatgptProvider } from "./chatgpt.ts";
-import {
-  NOUS_INFERENCE_BASE_URL,
-  refreshNousCatalog,
-  registerNousProvider,
-} from "./nous.ts";
+import { NOUS_INFERENCE_BASE_URL, registerNousProvider } from "./nous.ts";
 
 let runtime: Promise<ModelRuntime> | undefined;
 const complexApiKeyProviders = new Set(["amazon-bedrock", "cloudflare-ai-gateway", "cloudflare-workers-ai", "google-vertex"]);
@@ -72,16 +68,30 @@ export function sandboxModelService(providerId: string): ServiceConfiguration | 
 export function piModelRuntime(): Promise<ModelRuntime> {
   runtime ??= ModelRuntime.create({
     authPath: path.resolve(".autoforum", "pi-auth.json"),
-    modelsPath: null,
-    refreshOnCreate: false,
+    modelsPath: path.resolve(".autoforum", "pi-models.json"),
+    modelsStorePath: path.resolve(".autoforum", "pi-model-catalogs.json"),
+    refreshOnCreate: true,
     allowModelNetwork: false,
   }).then(async (created) => {
     registerChatgptProvider(created);
     registerNousProvider(created);
-    if (created.hasConfiguredAuth("nous")) await refreshNousCatalog(created).catch(() => undefined);
+    // Registration happens after create(), so restore Nous's cached catalog explicitly without networking.
+    await created.refresh({ providers: ["nous"], allowNetwork: false });
     return created;
   });
   return runtime;
+}
+
+/** Refresh only the provider whose catalog the user is viewing or has just configured. */
+export async function refreshModelCatalog(models: ModelRuntime, providerId: string): Promise<void> {
+  if (!models.getProvider(providerId)) throw new Error("model_provider_not_found");
+  const result = await models.refresh({
+    providers: [providerId],
+    allowNetwork: true,
+    signal: AbortSignal.timeout(15_000),
+  });
+  const error = result.errors.get(providerId);
+  if (error) throw error;
 }
 
 export interface ModelApiKeyProvider {
@@ -147,7 +157,7 @@ export async function saveModelApiKey(models: ModelRuntime, providerId: string, 
     notify() {},
   });
   if (!prompted) throw new Error("model_api_key_provider_requires_additional_setup");
-  if (providerId === "nous") await refreshNousCatalog(models).catch(() => undefined);
+  await refreshModelCatalog(models, providerId).catch(() => undefined);
 }
 
 export async function removeModelApiKey(models: ModelRuntime, providerId: string): Promise<void> {
