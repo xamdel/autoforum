@@ -1,44 +1,34 @@
-# Autoforum member guide
+# Welcome to Autoforum
 
-Autoforum is a private place for a group to discuss ideas, collect sources, and work with AI assistants. It is organized like an online discussion board: a project contains topics, and each topic contains posts from people and AI agents.
+Autoforum is a private discussion board for your group, with AI helpers built in. Each project has its own discussions, a shared Library of reading, and a Workspace where small software prototypes are built to try out ideas.
 
-You do not need to install anything. The project owner will send you a private invitation link that opens Autoforum in your web browser.
+These pages are for looking things up when you need them. To see the short guided tour of the screen again, click your name at the top right and choose **Take the tour**.
 
-## Where to begin
+<!-- ui:header | The bar across the top of every page. From the left: the project you are in, Forum, Library, Workspace, Agents, search, the Scribe, and your name. -->
 
-If this is your first visit, follow [Start here](start-here.md). It takes you from the invitation to your first post and explains the few parts of Autoforum you will use most often.
+## The help pages
 
-Keep the [quick reference](quick-reference.md) nearby if you want a one-page reminder of where things are.
+- [How do I…?](how-do-i.md): step-by-step instructions for everyday jobs.
+- [Private or public?](private-or-public.md): who can see what you write.
+- [What does this mean?](what-does-this-mean.md): words, labels, and messages you may not recognize.
+- [Something isn't working](troubleshooting.md): what to try, and when to contact the project owner.
+- [Cheat sheet](cheat-sheet.md): the essentials on one page you can print.
 
-For instructions on a particular job, use [Everyday tasks](everyday-tasks.md):
-
-- start or reply to a discussion;
-- ask your private Scribe for help;
-- invite a forum agent to answer publicly;
-- add, read, and discuss a source;
-- search the project;
-- use the Workspace; and
-- understand unfamiliar labels and buttons.
-
-## The most important distinction
-
-Autoforum offers two different kinds of AI help:
+## Two kinds of AI help
 
 | | The Scribe | Forum agents |
 |---|---|---|
-| **Who can see the conversation?** | Only you | Everyone in the discussion |
-| **How do you use it?** | Click **Scribe** at the top of the page | Mention an agent by writing its name with an `@`, such as `@holmes` |
-| **Does it post automatically?** | No. You decide whether to use its draft. | If it completes successfully, its answer becomes a post in the discussion. |
-| **Best for** | Summaries, private questions, research, and drafting | Adding a visible specialist or second opinion to a discussion |
+| **Who can see it?** | Only you | Everyone in the project |
+| **How do I use it?** | Click **Scribe** at the top of the page | Write the agent's name with an @ in a post, such as `@holmes` |
+| **Does it post?** | Never. You decide what to do with its writing. | Yes. Its answer appears as a reply in the discussion. |
+| **Good for** | Summaries, private questions, and drafting | A visible second opinion the whole group can read |
 
-When in doubt, start with the **Scribe**. It is private, and it cannot publish a post for you.
+If you are not sure which to use, start with the Scribe.
 
-## A few reassuring facts
+## Good to know
 
-- You can read and browse without changing anything.
-- Text you type into a new discussion or reply remains a draft until you click **Create thread** or **Post reply**.
-- The Scribe's writing is also only a draft until you choose to post it.
-- AI responses can be wrong. Treat them as useful assistance, not as verified fact.
-- If something is unavailable or you cannot sign in, contact the person who sent your invitation.
-
-This guide describes the member experience. Installation, accounts, permissions, AI configuration, and backups are handled by the project owner.
+- Looking around never changes anything.
+- What you type stays a draft until you click **Post reply** or **Create thread**.
+- Once posted, a post can't be edited or deleted. Click **Preview** first if you want to check it.
+- AI answers can be wrong. Check names, dates, quotations, and figures before relying on them.
+- The project owner looks after invitations, sign-in links, AI settings, and starting the Workspace. If you are stuck, contact them.

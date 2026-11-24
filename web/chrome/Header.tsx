@@ -1,5 +1,6 @@
 // The header: brand, the project you are in, the four destinations (Forum, Library, Workspace, Agents), search, the
 // Scribe's button, and who you are. The Workspace entry carries the sandbox's state; the Agents entry shows activity.
+// The data-tour attributes are what the first-visit tour points at (chrome/Onboarding.tsx).
 
 import { useEffect, useState, type FormEvent } from "react";
 
@@ -8,6 +9,7 @@ import { clearQueries, invalidate } from "../lib/query.ts";
 import { link, navigate, path, useRoute } from "../lib/router.ts";
 import { flashFailure, icons, Modal, Popover } from "../components/ui.tsx";
 import { dock, dockShowing, toggleScribe, type DockContext } from "../state/dock.ts";
+import { startTour } from "../state/onboarding.ts";
 import { useProject } from "../state/project.tsx";
 import { keys, useConversations, useSandbox } from "../state/queries.ts";
 import { chat } from "../state/scribe.ts";
@@ -43,6 +45,7 @@ function ScribeButton({ context, busy }: { context: DockContext; busy: boolean }
     <button
       type="button"
       className={`cluster-btn ${on ? "on" : ""}`}
+      data-tour="scribe"
       aria-pressed={on}
       title={`The Scribe, beside the page (Ctrl+J)${busy ? " · working" : unread ? " · it has replied" : ""}`}
       onClick={toggleScribe}
@@ -131,9 +134,9 @@ export function Header({ page, context }: { page: string; context: DockContext }
         {isOwner ? <option value="new">New project…</option> : null}
       </select>
       <nav aria-label="Main">
-        <a href={link(projectId, "forum")} className={forum ? "active" : ""} title="Threads and search">Forum</a>
-        <a href={link(projectId, "library")} className={page === "library" ? "active" : ""} title="Sources and their excerpts">Library</a>
-        <a href={link(projectId, "workspace")} className={page === "workspace" ? "active" : ""} title="The project's interactive workspace pages">
+        <a href={link(projectId, "forum")} className={forum ? "active" : ""} data-tour="forum" title="Threads and search">Forum</a>
+        <a href={link(projectId, "library")} className={page === "library" ? "active" : ""} data-tour="library" title="Sources and their excerpts">Library</a>
+        <a href={link(projectId, "workspace")} className={page === "workspace" ? "active" : ""} data-tour="workspace" title="The project's interactive workspace pages">
           Workspace<SandboxDot scribeBusy={scribeBusy} />
         </a>
         <AgentsNav active={page === "agents"} />
@@ -141,6 +144,7 @@ export function Header({ page, context }: { page: string; context: DockContext }
       <form
         className="search-box"
         role="search"
+        data-tour="search"
         onSubmit={(event) => {
           event.preventDefault();
           if (query.trim()) navigate(`${path(projectId, "search")}?q=${encodeURIComponent(query.trim())}`);
@@ -153,7 +157,7 @@ export function Header({ page, context }: { page: string; context: DockContext }
         label="Account"
         className="menu"
         button={({ open, toggle }) => (
-          <button type="button" className={`cluster-btn identity ${open ? "on" : ""}`} aria-expanded={open} onClick={toggle} title="You post as this handle">
+          <button type="button" className={`cluster-btn identity ${open ? "on" : ""}`} data-tour="account" aria-expanded={open} onClick={toggle} title="You post as this handle">
             <span>@{user.handle}</span>
             {icons.chevron}
           </button>
@@ -162,6 +166,8 @@ export function Header({ page, context }: { page: string; context: DockContext }
         {(close) => (
           <>
             <div className="menu-note">Signed in as <b>@{user.handle}</b>{isOwner ? " · owner" : ""}</div>
+            <a className="menu-item" href={link(projectId, "help")} onClick={close}>{icons.help} Help</a>
+            <button type="button" className="menu-item" onClick={() => (close(), startTour())}>{icons.compass} Take the tour</button>
             <a className="menu-item" href={link(projectId, "settings")} onClick={close}>{icons.gear} Project settings</a>
             <button type="button" className="menu-item" onClick={signOut}>{icons.signOut} Sign out</button>
           </>

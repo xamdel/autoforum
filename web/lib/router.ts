@@ -7,6 +7,7 @@
 //   #/<project>/library        sources            #/<project>/library/<source>
 //   #/<project>/workspace      the sandbox        #/<project>/settings
 //   #/<project>/agents         agents             #/<project>/agents/<agent | new | access | scribe | activity>
+//   #/<project>/help           the member guide   #/<project>/help/<page>?at=<heading>
 
 import { useSyncExternalStore } from "react";
 

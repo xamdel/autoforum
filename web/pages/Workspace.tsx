@@ -463,7 +463,7 @@ function Stopped({ status, error, starting, onStart }: { status: SandboxStatus |
     <div className="ws-startup">
       <span className="ws-startup-mark">{icons.folder}</span>
       <p className="eyebrow">Project workspace</p>
-      <h1>{status.state === "absent" ? "Start building this workspace" : "The workspace is resting"}</h1>
+      <h1>{status.state === "absent" ? "Start building this workspace" : "The sandbox is stopped"}</h1>
       {status.imageAvailable ? (
         <>
           <p className="muted">{status.state === "absent" ? "Starting creates a persistent project workspace where the Scribe can build pages and reusable modules." : "Its pages, files, and Git history are preserved. Start it to use them or continue working with the Scribe."}</p>
@@ -600,7 +600,7 @@ export default function Workspace() {
     return next;
   });
 
-  // Starting and stopping are owned here, so the bar's switch and the resting screen's button act as one. Either
+  // Starting and stopping are owned here, so the bar's switch and the stopped screen's button act as one. Either
   // way the sandbox's state is read again before the transition is let go, so the switch never flicks back between.
   const settle = () => sandbox.refetch().finally(() => setTransition(null));
   const start = () => {
@@ -623,8 +623,8 @@ export default function Workspace() {
     : <div className="ws-startup">
         <span className="ws-startup-mark">{icons.folder}</span>
         <p className="eyebrow">Project workspace</p>
-        <h1>The workspace is resting</h1>
-        <p className="muted">The installation owner must start the shared sandbox before its pages can be opened or edited.</p>
+        <h1>{sandbox.data?.state === "absent" ? "The sandbox has not been started" : "The sandbox is stopped"}</h1>
+        <p className="muted">Only the project owner can start or stop the sandbox. Workspace pages open here while it is running.</p>
       </div>;
   else if (file) {
     stage = (

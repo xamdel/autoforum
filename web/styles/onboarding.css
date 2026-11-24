@@ -1,0 +1,40 @@
+/* The first-visit tour and the one-time hints (web/chrome/Onboarding.tsx). Written for readers new to the app: larger
+   type than the chrome around it, short lines, and buttons big enough to hit without aiming. */
+
+/* While the tour shows, it has the page: this layer takes every click, and the spot dims all but its target. */
+.coach-layer { position: fixed; inset: 0; z-index: 400; }
+.coach-layer.dim { background: rgba(28, 18, 10, 0.5); }
+.coach-spot {
+  position: fixed; border-radius: 6px; pointer-events: none;
+  box-shadow: 0 0 0 3px var(--gold), 0 0 0 200vmax rgba(28, 18, 10, 0.5);
+  transition: top 0.2s ease, left 0.2s ease, width 0.2s ease, height 0.2s ease;
+}
+
+.coach-bubble {
+  position: fixed; z-index: 410; width: min(23rem, calc(100vw - 24px));
+  padding: 1.05rem 1.2rem 1rem; background: var(--marble); color: var(--ink);
+  border: 1px solid var(--stone-dark); border-radius: var(--radius); box-shadow: var(--shadow-raised);
+  font-size: 1.02rem; line-height: 1.55;
+}
+.coach-bubble.measuring { opacity: 0; }
+.coach-bubble.welcome { width: min(28rem, calc(100vw - 24px)); padding: 1.5rem 1.6rem 1.3rem; }
+/* A hint sits over the page without holding it: under the tour, over panels and popovers. */
+.coach-bubble.hint { z-index: 180; width: min(21rem, calc(100vw - 24px)); }
+
+.coach-bubble h2 { margin: 0 0 0.45rem; font-size: 1.15rem; letter-spacing: 0.02em; }
+.coach-bubble.welcome h2 { font-size: 1.35rem; }
+.coach-body p { margin: 0 0 0.55rem; }
+.coach-body p:last-child, p.coach-body { margin-bottom: 0; }
+
+.coach-actions { display: flex; align-items: center; justify-content: flex-end; gap: 0.6rem; margin-top: 1rem; }
+.coach-actions button { min-height: 2.4rem; padding: 0.4rem 1.05rem; font-size: 0.98rem; }
+.coach-actions button.link { margin-right: auto; padding: 0.4rem 0; color: var(--muted); }
+.coach-count { color: var(--muted); font-size: 0.88rem; white-space: nowrap; }
+
+/* The point that joins the bubble to its target: a turned square showing two of its edges. */
+.coach-arrow { position: absolute; width: 14px; height: 14px; background: var(--marble); border: 1px solid var(--stone-dark); transform: rotate(45deg); }
+.at-below > .coach-arrow { top: -8px; margin-left: -7px; border-right: 0; border-bottom: 0; }
+.at-above > .coach-arrow { bottom: -8px; margin-left: -7px; border-top: 0; border-left: 0; }
+.at-left > .coach-arrow { right: -8px; margin-top: -7px; border-bottom: 0; border-left: 0; }
+
+@media (prefers-reduced-motion: reduce) { .coach-spot { transition: none; } }

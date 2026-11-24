@@ -1,5 +1,5 @@
 // The app: sign-in, then the header over the routed page with the dock beside it. The forum's own pages are part of
-// the first load; the Library, Workspace, Agents, and settings pages are separate chunks fetched when first opened.
+// the first load; the Library, Workspace, Agents, settings, and help pages are separate chunks fetched when first opened.
 
 import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
@@ -13,6 +13,7 @@ import { AddressCard } from "./components/AddressCard.tsx";
 import { Empty, Failure, flashFailure, Loading, Notices, notify } from "./components/ui.tsx";
 import { BrandMark, Header } from "./chrome/Header.tsx";
 import { Dock } from "./chrome/Dock.tsx";
+import { Onboarding } from "./chrome/Onboarding.tsx";
 import { api, onUnauthorized, type AgentTurn, type Project, type User } from "./lib/api.ts";
 import { describeError } from "./lib/format.ts";
 import { clearQueries, invalidate } from "./lib/query.ts";
@@ -31,6 +32,7 @@ const SourcePage = lazy(() => import("./pages/Source.tsx"));
 const Workspace = lazy(() => import("./pages/Workspace.tsx"));
 const Agents = lazy(() => import("./pages/Agents.tsx"));
 const Settings = lazy(() => import("./pages/Settings.tsx"));
+const Help = lazy(() => import("./pages/Help.tsx"));
 
 const LAST_PROJECT = "autoforum.project";
 
@@ -232,6 +234,7 @@ function Shell({ user, projects, project }: { user: User; projects: Project[]; p
     case "workspace": content = <Workspace />; break;
     case "agents": content = <Agents />; break;
     case "settings": content = <Settings />; break;
+    case "help": content = <Help />; break;
     default: content = <Empty>Page not found.</Empty>;
   }
 
@@ -251,6 +254,7 @@ function Shell({ user, projects, project }: { user: User; projects: Project[]; p
         <Dock context={context} />
       </div>
       <AddressCard />
+      <Onboarding />
     </ProjectContext.Provider>
   );
 }

@@ -74,7 +74,7 @@ const PostView = memo(function PostView({ post, kind, objects, excerpts, excerpt
           <ObjectCard key={object.id} object={object} results={resultsByProposal.get(object.address)} threadId={threadId} projectId={projectId} highlight={marked === object.address} />
         ))}
         <footer>
-          <button type="button" className="link" onClick={() => actions.reply(post)}>Reply</button>
+          <button type="button" className="link" data-tour="reply" onClick={() => actions.reply(post)}>Reply</button>
           <button type="button" className="link" onClick={() => actions.quote(post)}>Quote</button>
           <button type="button" className="link" onClick={() => actions.cite(post)}>Cite</button>
           <button type="button" className="link" title="Talk to the Scribe about this post, privately, beside the page" onClick={() => actions.ask(post)}>Ask the Scribe</button>

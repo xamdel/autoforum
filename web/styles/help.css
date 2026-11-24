@@ -1,0 +1,83 @@
+/* The member guide (web/pages/Help.tsx): the list of pages beside the page being read, in larger type than the forum
+   uses, since this is read slowly and often by someone who is stuck. */
+
+.help-page { display: grid; grid-template-columns: 14rem minmax(0, 44rem); gap: 2.6rem; justify-content: center; align-items: start; }
+
+.help-nav { position: sticky; top: 0; }
+.help-nav .eyebrow { margin-bottom: 0.5rem; }
+.help-nav ul { list-style: none; margin: 0; padding: 0; }
+.help-nav a { display: block; padding: 0.42rem 0.7rem; color: var(--ink); border-left: 3px solid transparent; line-height: 1.35; }
+.help-nav a:hover { background: var(--marble-2); text-decoration: none; }
+.help-nav a.active { border-left-color: var(--gold); background: var(--gold-soft); font-weight: 600; }
+.help-contents { margin: 0.15rem 0 0.4rem !important; }
+.help-contents a { padding: 0.26rem 0.7rem 0.26rem 1.4rem; color: var(--ink-soft); font-size: 0.9rem; }
+
+.help-article { position: relative; min-width: 0; }
+.help-article section { scroll-margin-top: 1rem; }
+.help-article .md { font-size: 1.06rem; line-height: 1.65; }
+.help-article .md h1 { margin-top: 0; font-size: 1.75rem; }
+.help-article .md h2 { margin-top: 2rem; padding-bottom: 0.3rem; border-bottom: 1px solid var(--stone); font-size: 1.3rem; }
+.help-article .md h3 { margin-top: 1.4rem; font-size: 1.1rem; }
+.help-article .md table { width: 100%; font-size: 0.98rem; }
+.help-article .md th, .help-article .md td { padding: 0.45rem 0.65rem; }
+.help-article .md li { margin: 0.2rem 0; }
+.help-print { float: right; margin: 0.3rem 0 0 1rem; }
+
+/* Pictures of the app (web/pages/HelpFigures.tsx): the real classes inside a frame that reads as a picture, with
+   the controls being explained ringed in gold, as the tour rings them. */
+.help-figure { margin: 1.1rem 0 1.6rem; }
+.help-screen {
+  position: relative; isolation: isolate; overflow: hidden; padding: 1.1rem 1.2rem;
+  background: var(--travertine); border: 1px solid var(--stone-dark); border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(40, 20, 10, 0.12); cursor: default; user-select: none;
+}
+.help-screen.flush { padding: 0; }
+.help-figure figcaption { margin-top: 0.5rem; }
+.help-figure .help-caption { color: var(--muted); font-size: 0.94rem; font-style: italic; line-height: 1.5; }
+.help-caption p { margin: 0; }
+/* The ring follows each control's own corners: round buttons stay round. */
+.help-mark { outline: 3px solid var(--gold); outline-offset: 3px; box-shadow: 0 0 0 7px rgba(176, 138, 62, 0.22); }
+
+/* The header is wider than the article: it is drawn smaller, laid out as if the window were wide. */
+.help-top { box-shadow: none; z-index: auto; }
+.help-screen > .help-top:not(.help-strip) { zoom: 0.68; gap: 0.9rem; padding-left: 1rem; padding-right: 1rem; }
+.help-strip { display: inline-flex; padding-right: 1.4rem; }
+.help-pair { display: flex; flex-wrap: wrap; }
+.help-pair > div { display: flex; flex-direction: column; align-items: flex-start; border-right: 1px solid var(--stone-dark); }
+.help-pair > div > span { padding: 0.35rem 0.9rem; color: var(--muted); font-size: 0.88rem; }
+
+/* Things that float in the app sit still in a picture. */
+.help-screen .composer { margin-top: 0; }
+.help-screen .post { margin: 0; }
+.help-screen .head-row { margin-bottom: 0; }
+.help-reader { position: relative; padding-top: 2.7rem; }
+.help-reader .page-text { margin: 0; }
+.help-selected { background: #b9d3f2; }
+.help-selection-tools { position: absolute; top: 0; left: 1.2rem; }
+.help-account { display: flex; flex-direction: column; }
+.help-account > .top { display: flex; justify-content: flex-end; }
+.help-menu-area { display: flex; justify-content: flex-end; padding: 0 0.8rem 1rem; }
+.help-menu-area .popover { position: static; margin-top: 8px; box-shadow: var(--shadow-raised); }
+.help-panel { width: min(25rem, 100%); margin-left: auto; background: var(--marble); border-left: 1px solid var(--stone-dark); }
+.help-panel .chat-log { overflow: visible; }
+/* The Workspace page's own stylesheet loads after this one, so these carry one more class to win. */
+.help-screen .help-startup { width: auto; margin: 0; padding: 0.4rem 1rem; }
+.help-screen .help-startup h1 { margin: 0.2rem 0 0.5rem; font-size: 1.6rem; }
+.help-screen .help-startup > p:not(.eyebrow) { margin-bottom: 0; }
+
+@container page (max-width: 760px) {
+  .help-page { grid-template-columns: minmax(0, 1fr); gap: 1.2rem; }
+  .help-nav { position: static; }
+  .help-contents { display: none; }
+}
+
+/* The cheat sheet is meant to be printed: just the page, on paper. */
+@media print {
+  html:has(.help-page), body:has(.help-page), body:has(.help-page) #root { display: block; height: auto; overflow: visible; }
+  body:has(.help-page) header.top, body:has(.help-page) .dock, body:has(.help-page) #notices, .help-nav, .help-print { display: none !important; }
+  body:has(.help-page) .shell, body:has(.help-page) #page { display: block; height: auto; overflow: visible; padding: 0; }
+  .help-page { display: block; }
+  .help-screen { print-color-adjust: exact; -webkit-print-color-adjust: exact; break-inside: avoid; }
+  .help-article .md { font-size: 11pt; line-height: 1.45; }
+  .help-article .md h2 { margin-top: 1rem; }
+}

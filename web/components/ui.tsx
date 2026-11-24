@@ -41,6 +41,8 @@ export const icons = {
   refresh: line(<path d="M20 11a8 8 0 0 0-14.3-4M4 4v4h4M4 13a8 8 0 0 0 14.3 4M20 20v-4h-4" />, 16),
   download: line(<path d="M12 4v11M7.5 11 12 15.5 16.5 11M5 20h14" />, 16),
   signOut: line(<path d="M10 4H5v16h5M14 8l4 4-4 4M18 12H9" />, 16),
+  help: line(<><circle cx="12" cy="12" r="8.5" /><path d="M9.7 9.4a2.4 2.4 0 0 1 4.6 1c0 1.6-2.3 2-2.3 3.5M12 17h.01" /></>, 16),
+  compass: line(<><circle cx="12" cy="12" r="8.5" /><path d="m15.2 8.8-1.9 4.5-4.5 1.9 1.9-4.5z" /></>, 16),
   key: line(<><circle cx="8" cy="15.5" r="4" /><path d="m11 12.5 8.5-8.5M16 7.5l2.5 2.5M13.5 10l2 2" /></>, 16),
   gear: line(<><circle cx="12" cy="12" r="2.8" /><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1" /></>, 16),
   reply: line(<path d="M10 8 5 12.5 10 17M5 12.5h9a5 5 0 0 1 5 5V19" />, 15),
