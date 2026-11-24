@@ -65,6 +65,12 @@ test("the Scribe has sandbox tools without treating the sandbox as host access",
   assert.match(prompt, /no host access/);
   assert.match(prompt, /Git commit/);
   assert.match(prompt, /image-owned shell automatically discovers and rebuilds pages/);
+  assert.match(prompt, /native form submission is deliberately blocked/);
+  assert.match(prompt, /type="button" with onClick/);
+  assert.match(prompt, /Browser storage is scoped to the short-lived preview origin/);
+  assert.match(prompt, /Writes under pages\/ and modules\/ report the corresponding shell build result/);
+  assert.match(prompt, /call workspace_status yourself/);
+  assert.match(prompt, /latest shell build has finished without an error/);
   assert.match(prompt, /never ask the user to visit a sandbox localhost address/);
   assert.match(prompt, /pages\/<slug>\/server\.ts/);
   assert.match(prompt, /\/api\/pages\/<slug>\/\*/);
@@ -98,6 +104,12 @@ test("live Scribe activity describes tool calls without exposing file contents o
     toolName: "run_workspace_command",
     input: { argv: ["sh", "-lc", "curl -H 'Authorization: SECRET' https://example.test"] },
   }), "Running a workspace command…");
+  assert.equal(describeScribeToolActivity({
+    phase: "start",
+    callId: "status-1",
+    toolName: "workspace_status",
+    input: {},
+  }), "Checking the workspace build…");
   assert.equal(describeScribeToolActivity({
     phase: "start",
     callId: "save-1",

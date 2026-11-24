@@ -2,12 +2,22 @@ import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 
+async function waitForBuild(port, afterBuildNumber) {
+  const deadline = Date.now() + 10_000;
+  let status;
+  while (Date.now() < deadline) {
+    status = await fetch(`http://127.0.0.1:${port}/__autoforum_workspace/status`).then((response) => response.json());
+    if (status.buildNumber > afterBuildNumber && !status.building) return status;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  assert.fail(`workspace build did not finish: ${JSON.stringify(status)}`);
+}
+
 test("discovers a page, serves its bundle, and delegates its API", async () => {
-  const root = await mkdtemp(path.join(tmpdir(), "autoforum-shell-test-"));
+  const root = await mkdtemp(path.join(path.resolve("test"), ".autoforum-shell-test-"));
   const page = path.join(root, "pages", "hello");
   await mkdir(path.join(root, "modules"), { recursive: true });
   await mkdir(path.join(root, "outputs"), { recursive: true });
@@ -47,6 +57,18 @@ test("discovers a page, serves its bundle, and delegates its API", async () => {
     assert.deepEqual(order, order.toSorted((left, right) => left - right), "design system, then shell, then page CSS");
     const api = await fetch(`http://127.0.0.1:${port}/api/pages/hello/example`);
     assert.deepEqual(await api.json(), { path: "/example" });
+
+    const beforeFailure = await fetch(`http://127.0.0.1:${port}/__autoforum_workspace/status`).then((response) => response.json());
+    assert.equal(beforeFailure.error, null);
+    await writeFile(path.join(page, "page.tsx"), "export default function Page(){ return <output>Broken</button> }");
+    const failed = await waitForBuild(port, beforeFailure.buildNumber);
+    assert.equal(failed.revision, beforeFailure.revision);
+    assert.match(failed.error, /closing "button" tag does not match opening "output" tag/);
+
+    await writeFile(path.join(page, "page.tsx"), "export default function Page(){ return <output>Fixed</output> }");
+    const recovered = await waitForBuild(port, failed.buildNumber);
+    assert.equal(recovered.error, null);
+    assert.equal(recovered.revision, beforeFailure.revision + 1);
   } finally {
     child.kill();
     await once(child, "exit").catch(() => undefined);

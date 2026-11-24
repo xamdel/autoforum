@@ -13,6 +13,8 @@ test("preview policy isolates embedded applications without disabling their own 
   assert.match(headers["content-security-policy"]!, /connect-src 'self'/);
   assert.match(headers["content-security-policy"]!, /frame-ancestors http:\/\/app\.autoforum\.localhost:5173/);
   assert.match(headers["content-security-policy"]!, /sandbox allow-scripts allow-same-origin allow-downloads/);
+  assert.doesNotMatch(headers["content-security-policy"]!, /allow-forms/);
+  assert.match(headers["content-security-policy"]!, /form-action 'none'/);
   assert.match(headers["content-security-policy"]!, /script-src 'self' 'unsafe-inline'/);
   assert.doesNotMatch(headers["content-security-policy"]!, /unsafe-eval/);
   assert.equal(

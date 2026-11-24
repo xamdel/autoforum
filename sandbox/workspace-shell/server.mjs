@@ -27,6 +27,7 @@ let buildError = null;
 let building = false;
 let rebuildAgain = false;
 let revision = 0;
+let buildNumber = 0;
 
 function validSlug(value) {
   return /^[a-z0-9][a-z0-9-]{0,63}$/.test(value);
@@ -150,6 +151,8 @@ async function buildWorkspace() {
       await rm(output, { recursive: true, force: true }).catch(() => undefined);
       buildError = error instanceof Error ? error.stack ?? error.message : String(error);
       console.error("Workspace shell build failed; keeping the previous build.", error);
+    } finally {
+      buildNumber += 1;
     }
   } while (rebuildAgain);
   building = false;
@@ -227,7 +230,7 @@ async function handle(req, res) {
     const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "workspace"}`);
     if (url.pathname === `${INTERNAL_PREFIX}status`) {
       const pages = active?.pages.map(({ slug, title, description, icon }) => ({ slug, title, description, icon })) ?? [];
-      return send(res, 200, JSON.stringify({ revision, error: buildError, pages }), "application/json; charset=utf-8", req.method);
+      return send(res, 200, JSON.stringify({ revision, buildNumber, building, error: buildError, pages }), "application/json; charset=utf-8", req.method);
     }
     if (url.pathname.startsWith(INTERNAL_PREFIX)) {
       if (!active) return send(res, 503, buildError ?? "Workspace shell is still building.", undefined, req.method);

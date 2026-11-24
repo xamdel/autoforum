@@ -159,6 +159,7 @@ function toolServer(
         content: z.string().max(512 * 1_024),
         expectedSha256: z.string().regex(/^[a-f0-9]{64}$/).optional(),
       }, run("write_workspace_file")),
+      tool("workspace_status", description("workspace_status"), {}, run("workspace_status")),
       tool("run_workspace_command", description("run_workspace_command"), {
         argv: z.array(z.string().max(100_000)).min(1).max(100),
         cwd: pathValue.min(1).optional(),

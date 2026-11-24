@@ -61,6 +61,9 @@ test("other authored model prompts are generated from the prompt module", () => 
   assert.match(scribePrompt, /injected workspace catalog/);
   assert.match(scribePrompt, /\/opt\/autoforum-workspace-shell\/design-system\.css/);
   assert.match(scribePrompt, /using its tokens rather than new colours, fonts, corner radii, or a dark theme/);
+  assert.match(scribePrompt, /pages\/README\.md/);
+  assert.match(scribePrompt, /no allow-forms permission/);
+  assert.match(scribePrompt, /form-action 'none'/);
   assert.match(scribePrompt, /extend its public boundary, add an adapter or module/);
   assert.match(scribePrompt, /runs through its public interface/);
   assert.match(scribePrompt, /Wait for the user's explicit approval before implementing/);

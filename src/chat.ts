@@ -109,6 +109,8 @@ export function describeScribeToolActivity(activity: ScribeToolActivity): string
       const target = clipped(input.path);
       return target ? `Writing ${target}…` : "Writing a workspace file…";
     }
+    case "workspace_status":
+      return "Checking the workspace build…";
     case "run_workspace_command": {
       const argv = Array.isArray(input.argv) ? input.argv.filter((part): part is string => typeof part === "string") : [];
       const shell = argv[0] === "sh" || argv[0] === "bash" || argv[0] === "zsh";

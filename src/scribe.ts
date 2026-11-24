@@ -23,6 +23,7 @@ import {
   listWorkspaceDirectory,
   readWorkspaceCatalog,
   readWorkspaceFile,
+  readWorkspaceShellStatus,
   writeWorkspaceFile,
   type WorkspaceCatalog,
 } from "./sandbox/filesystem.ts";
@@ -317,7 +318,7 @@ export async function runScribe(
   const writeWorkspace = defineTool({
     name: "write_workspace_file",
     label: "Write workspace file",
-    description: "Create or replace one UTF-8 text file in the persistent shared project workspace. Supply expectedSha256 when replacing a file you read, and preserve its page/module/output boundaries.",
+    description: "Create or replace one UTF-8 text file in the persistent shared project workspace. Supply expectedSha256 when replacing a file you read, and preserve its page/module/output boundaries. Writes under pages/ or modules/ wait for the shell rebuild and return its build status and diagnostic.",
     parameters: Type.Object({
       path: Type.String({ minLength: 1, maxLength: 500 }),
       content: Type.String({ maxLength: 512 * 1024 }),
@@ -331,6 +332,15 @@ export async function runScribe(
         input.expectedSha256,
       );
       return toolText(result);
+    },
+  });
+  const workspaceStatus = defineTool({
+    name: "workspace_status",
+    label: "Check workspace build",
+    description: "Read the workspace shell's live build status and latest build error. Use this after page or module changes made through run_workspace_command, and whenever a write reports a pending or unavailable build.",
+    parameters: Type.Object({}, { additionalProperties: false }),
+    async execute() {
+      return toolText(await readWorkspaceShellStatus(workspaceProject));
     },
   });
   const runWorkspaceCommand = defineTool({
@@ -366,7 +376,7 @@ export async function runScribe(
     readWeb,
     saveSource,
     readSource,
-    ...(workspaceAccess ? [listWorkspace, readWorkspace, writeWorkspace, runWorkspaceCommand] : []),
+    ...(workspaceAccess ? [listWorkspace, readWorkspace, writeWorkspace, workspaceStatus, runWorkspaceCommand] : []),
   ];
   if (selection.provider === "claude-code") {
     connectExternalAbort();

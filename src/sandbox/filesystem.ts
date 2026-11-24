@@ -22,6 +22,25 @@ const fileSchema = z.object({
   sha256: sha256Schema,
   content: base64Schema,
 }).strict();
+const workspacePageSchema = z.object({
+  slug: z.string().min(1).max(64),
+  title: z.string().min(1).max(100),
+  description: z.string().max(240),
+  icon: z.string().max(8),
+}).strict();
+const workspaceShellStatusSchema = z.object({
+  revision: z.number().int().nonnegative(),
+  buildNumber: z.number().int().nonnegative(),
+  building: z.boolean(),
+  error: z.string().max(64 * 1024).nullable(),
+  pages: z.array(workspacePageSchema).max(100),
+}).strict();
+const workspaceBuildReportSchema = z.object({
+  state: z.enum(["passed", "failed", "pending", "unavailable", "not_applicable"]),
+  revision: z.number().int().nonnegative().nullable(),
+  buildNumber: z.number().int().nonnegative().nullable(),
+  error: z.string().max(64 * 1024).nullable(),
+}).strict();
 
 export interface WorkspaceEntry extends z.infer<typeof entrySchema> {}
 export interface WorkspaceFile {
@@ -40,6 +59,9 @@ export interface WorkspaceCatalog {
   pages: Array<z.infer<typeof catalogEntrySchema>>;
   modules: Array<z.infer<typeof catalogEntrySchema>>;
 }
+
+export type WorkspaceShellStatus = z.infer<typeof workspaceShellStatusSchema>;
+export type WorkspaceBuildReport = z.infer<typeof workspaceBuildReportSchema>;
 
 export function normalizeWorkspacePath(value: string, allowRoot = false): string {
   if (typeof value !== "string" || value.includes("\\") || value.includes("\0")) throw new Error("invalid_path");
@@ -129,7 +151,12 @@ export async function writeWorkspaceFile(
   const logical = normalizeWorkspacePath(value);
   if (bytes.byteLength > 512 * 1024) throw new Error("file_too_large");
   if (expectedSha256 && !sha256Schema.safeParse(expectedSha256).success) throw new Error("invalid_hash");
-  return z.object({ path: z.literal(logical), size: z.number().int().nonnegative(), sha256: sha256Schema }).strict().parse(
+  return z.object({
+    path: z.literal(logical),
+    size: z.number().int().nonnegative(),
+    sha256: sha256Schema,
+    build: workspaceBuildReportSchema.optional(),
+  }).strict().parse(
     await invoke(project, {
       operation: "write",
       path: logical,
@@ -137,6 +164,11 @@ export async function writeWorkspaceFile(
       ...(expectedSha256 ? { expectedSha256 } : {}),
     }),
   );
+}
+
+/** Reads the workspace shell's latest completed build and any live diagnostic. */
+export async function readWorkspaceShellStatus(project: ProjectSandboxIdentity): Promise<WorkspaceShellStatus> {
+  return workspaceShellStatusSchema.parse(await invoke(project, { operation: "status" }));
 }
 
 export async function collectWorkspaceFiles(

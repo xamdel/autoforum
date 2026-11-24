@@ -3,12 +3,15 @@ import { lstat, mkdir, open, opendir, readFile, realpath, rename, rm } from "nod
 import { createHash, randomBytes } from "node:crypto";
 import path from "node:path";
 
-const ROOT = "/workspace";
+const ROOT = process.env.AUTOFORUM_WORKSPACE_ROOT ?? "/workspace";
 const MAX_REQUEST_BYTES = 1024 * 1024;
 const MAX_LIST_ENTRIES = 2_000;
 const HIDDEN_TREE_DIRECTORIES = new Set([".git", "node_modules", ".venv", "venv", "__pycache__"]);
 const MAX_CATALOG_ENTRIES = 100;
 const MAX_DESCRIPTION_LENGTH = 240;
+const SHELL_STATUS_URL = process.env.AUTOFORUM_SHELL_STATUS_URL ?? "http://127.0.0.1:8080/__autoforum_workspace/status";
+const BUILD_WAIT_MS = 15_000;
+const MAX_BUILD_ERROR_LENGTH = 64 * 1024;
 
 function logicalPath(value, allowRoot = false) {
   if (typeof value !== "string" || value.includes("\\") || value.includes("\0")) throw new Error("invalid_path");
@@ -20,7 +23,7 @@ function logicalPath(value, allowRoot = false) {
 }
 
 function insideRoot(value) {
-  return value === ROOT || value.startsWith(`${ROOT}/`);
+  return value === ROOT || value.startsWith(`${ROOT}${path.sep}`);
 }
 
 async function checkedExisting(value, allowRoot = false) {
@@ -33,6 +36,52 @@ async function checkedExisting(value, allowRoot = false) {
 
 function sha256(bytes) {
   return createHash("sha256").update(bytes).digest("hex");
+}
+
+function delay(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+function boundedBuildError(value) {
+  if (value === null) return null;
+  if (typeof value !== "string") throw new Error("invalid_workspace_status");
+  return value.length <= MAX_BUILD_ERROR_LENGTH ? value : `${value.slice(0, MAX_BUILD_ERROR_LENGTH)}\n[build error truncated]`;
+}
+
+async function readShellStatus() {
+  const response = await fetch(SHELL_STATUS_URL, { signal: AbortSignal.timeout(1_000) });
+  if (!response.ok) throw new Error("workspace_status_unavailable");
+  const value = await response.json();
+  if (!value || typeof value !== "object" || Array.isArray(value)
+    || !Number.isSafeInteger(value.revision) || value.revision < 0
+    || !Number.isSafeInteger(value.buildNumber) || value.buildNumber < 0
+    || typeof value.building !== "boolean" || !(value.error === null || typeof value.error === "string")
+    || !Array.isArray(value.pages)) throw new Error("invalid_workspace_status");
+  return {
+    revision: value.revision,
+    buildNumber: value.buildNumber,
+    building: value.building,
+    error: boundedBuildError(value.error),
+    pages: value.pages,
+  };
+}
+
+async function workspaceStatus(request = {}) {
+  const afterBuildNumber = request.afterBuildNumber;
+  if (afterBuildNumber !== undefined && (!Number.isSafeInteger(afterBuildNumber) || afterBuildNumber < 0)) throw new Error("invalid_build_number");
+  const timeoutMs = Number(request.timeoutMs ?? BUILD_WAIT_MS);
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > BUILD_WAIT_MS) throw new Error("invalid_status_timeout");
+  const deadline = Date.now() + timeoutMs;
+  let status = await readShellStatus();
+  while (afterBuildNumber !== undefined && (status.buildNumber <= afterBuildNumber || status.building) && Date.now() < deadline) {
+    await delay(50);
+    status = await readShellStatus();
+  }
+  return status;
+}
+
+function affectsWorkspaceBuild(logical) {
+  return logical.startsWith("pages/") || logical.startsWith("modules/");
 }
 
 async function list(request) {
@@ -121,6 +170,8 @@ async function write(request) {
   if (typeof request.content !== "string") throw new Error("invalid_content");
   const bytes = Buffer.from(request.content, "base64");
   if (bytes.length > 512 * 1024) throw new Error("file_too_large");
+  let statusBefore = null;
+  if (affectsWorkspaceBuild(logical)) statusBefore = await readShellStatus().catch(() => null);
   const parent = await safeParent(logical);
   const target = path.join(parent, path.posix.basename(logical));
   try {
@@ -146,7 +197,28 @@ async function write(request) {
   } finally {
     await rm(temporary, { force: true }).catch(() => undefined);
   }
-  return { path: logical, size: bytes.length, sha256: sha256(bytes) };
+  let build = { state: "not_applicable", revision: null, buildNumber: null, error: null };
+  if (affectsWorkspaceBuild(logical)) {
+    try {
+      if (!statusBefore) throw new Error("workspace_status_unavailable");
+      const status = await workspaceStatus({ afterBuildNumber: statusBefore.buildNumber });
+      const completed = status.buildNumber > statusBefore.buildNumber && !status.building;
+      build = {
+        state: !completed ? "pending" : status.error ? "failed" : "passed",
+        revision: status.revision,
+        buildNumber: status.buildNumber,
+        error: status.error,
+      };
+    } catch (error) {
+      build = {
+        state: "unavailable",
+        revision: null,
+        buildNumber: null,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+  return { path: logical, size: bytes.length, sha256: sha256(bytes), build };
 }
 
 async function collect(request) {
@@ -261,7 +333,7 @@ async function main() {
   const decoded = Buffer.from(encoded, "base64url");
   if (decoded.length > MAX_REQUEST_BYTES) throw new Error("request_too_large");
   const request = JSON.parse(decoded.toString("utf8"));
-  const operations = { list, tree, read, write, collect, usage, catalog: workspaceCatalog };
+  const operations = { list, tree, read, write, collect, usage, catalog: workspaceCatalog, status: workspaceStatus };
   const operation = operations[request.operation];
   if (!operation) throw new Error("unknown_operation");
   return await operation(request);
